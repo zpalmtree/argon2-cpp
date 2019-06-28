@@ -8,7 +8,7 @@
 
 #include <vector>
 
-#include "Blake2b.h"
+#include "Blake2/Blake2b.h"
 
 std::string byteArrayToHexString(const std::vector<uint8_t> &input)
 {
