@@ -12,11 +12,6 @@
 
 #include <stdexcept>
 
-std::vector<uint8_t> Blake2b_Internal(
-    std::vector<uint8_t> message,
-    std::vector<uint8_t> key,
-    const uint8_t outputHashLength);
-
 void compress(
     std::vector<uint64_t> &hash,
     const std::vector<uint64_t> chunk,
@@ -71,17 +66,35 @@ constexpr std::array<
 
 std::vector<uint8_t> Blake2b(const std::vector<uint8_t> &message)
 {
-    return Blake2b_Internal(message, {}, 64);
+    class Blake2b blake;
+
+    blake.Init();
+    blake.Update(message);
+
+    return blake.Finalize();
 }
 
 std::vector<uint8_t> Blake2b(const std::string &message)
 {
-    return Blake2b_Internal({message.begin(), message.end()}, {}, 64);
+    class Blake2b blake;
+
+    blake.Init();
+    blake.Update({message.begin(), message.end()});
+
+    return blake.Finalize();
 }
 
-std::vector<uint8_t> Blake2b_Internal(
-    std::vector<uint8_t> message,
-    std::vector<uint8_t> key,
+Blake2b::Blake2b():
+    m_hash(8),
+    m_chunk(16),
+    m_bytesCompressed(0),
+    m_chunkSize(0),
+    m_outputHashLength(64)
+{
+}
+
+void Blake2b::Init(
+    const std::vector<uint8_t> key,
     const uint8_t outputHashLength)
 {
     if (outputHashLength > 64 || outputHashLength < 1)
@@ -94,76 +107,117 @@ std::vector<uint8_t> Blake2b_Internal(
         throw std::invalid_argument("Optional key must be at most 64 bytes");
     }
 
-    std::vector<uint64_t> hash(8);
-
     /* Copy the IV to the hash */
-    std::copy(IV.begin(), IV.end(), hash.begin());
+    std::copy(IV.begin(), IV.end(), m_hash.begin());
 
     /* Mix key size and desired hash length into hash[0] */
-    hash[0] ^= 0x01010000 ^ (key.size() << 8) ^ outputHashLength;
-
-    size_t bytesCompressed = 0;
-    size_t bytesRemaining = message.size();
+    m_hash[0] ^= 0x01010000 ^ (key.size() << 8) ^ outputHashLength;
 
     if (!key.empty())
     {
-        /* If we were given a key, pad it with zeros to make it 128 bytes */
-        key.resize(128, 0);
+        const uint8_t keySize = key.size();
+        const uint8_t remainingBytes = 128 - keySize;
 
-        /* Then prepend the key to the front of the message */
-        message.insert(message.begin(), key.begin(), key.end());
+        /* Then copy into the next chunk to be processed */
+        std::memcpy(&m_chunk[0], &key[0], key.size());
 
-        /* And now of course we have 128 more bytes to process. */
-        bytesRemaining += 128;
+        /* Pad with zeros to make it 128 bytes */
+        std::memset(&m_chunk[remainingBytes], 0, remainingBytes);
+
+        /* Signal we have a chunk to process */
+        m_chunkSize = 128;
+
+        m_bytesCompressed = 128;
+    }
+    else
+    {
+        m_chunkSize = 0;
+        m_bytesCompressed = 0;
     }
 
+    m_outputHashLength = outputHashLength;
+}
+
+/* Break input into 128 byte chunks and process in turn */
+void Blake2b::Update(const std::vector<uint8_t> &data)
+{
     /* 128 byte chunk to process */
     std::vector<uint64_t> chunk(16);
 
+    size_t len = data.size();
+
+    size_t offset = 0;
+
     /* Process 128 bytes at once, aside from final chunk */
-    while (bytesRemaining > 128)
+    while (len > 0)
     {
-        /* Copy 128 bytes of the message to the new chunk */
-        std::memcpy(&chunk[0], &message[bytesCompressed], 128);
+        /* Not final block */
+        if (m_chunkSize == 128)
+        {
+            compress(false);
+            m_chunkSize = 0;
+        }
 
-        /* Update the progress tally */
-        bytesCompressed += 128;
-        bytesRemaining -= 128;
+        /* Size of chunk to copy */
+        uint8_t size = 128 - m_chunkSize;
 
-        /* Perform the compression function (false = not final chunk) */
-        compress(hash, chunk, bytesCompressed, false);
+        if (size > len)
+        {
+            size = len;
+        }
+
+        /* Get void pointer to the chunk vector */
+        void *ptr = static_cast<void *>(&m_chunk[0]);
+
+        /* Cast to a uint8_t so we can do math on it */
+        /* We need to do the math this way, rather than &m_chunk[m_chunkSize / 8]
+           since that does not allow non 8 byte aligned offsets */
+        ptr = static_cast<uint8_t *>(ptr) + m_chunkSize;
+
+        std::memcpy(ptr, &data[offset], size);
+
+        /* Update stored chunk length */
+        m_chunkSize += size;
+
+        /* Update processed byte count */
+        m_bytesCompressed += size;
+
+        len -= size;
+
+        offset += size;
     }
+}
 
-    /* Pad the final chunk with zeros if needed */
-    std::vector<uint64_t> finalChunk(16, 0);
+std::vector<uint8_t> Blake2b::Finalize()
+{
+    /* Get void pointer to the chunk vector */
+    void *ptr = static_cast<void *>(&m_chunk[0]);
 
-    /* Copy the last chunk (may be less than 128 bytes) to finalChunk */
-    std::memcpy(&finalChunk[0], &message[bytesCompressed], bytesRemaining);
+    /* Cast to a uint8_t so we can do math on it */
+    /* We need to do the math this way, rather than &m_chunk[m_chunkSize / 8]
+       since that does not allow non 8 byte aligned offsets */
+    ptr = static_cast<uint8_t *>(ptr) + m_chunkSize;
 
-    /* Update the progress tally */
-    bytesCompressed += bytesRemaining;
+    /* Pad final chunk with zeros */
+    std::memset(ptr, 0, 128 - m_chunkSize);
 
-    /* Perform the final compression (true = final chunk) */
-    compress(hash, finalChunk, bytesCompressed, true);
+    /* Process final chunk */
+    compress(true);
 
     /* Return the final hash as a byte array */
-    std::vector<uint8_t> finalHash(64);
+    std::vector<uint8_t> finalHash(m_outputHashLength);
 
-    std::memcpy(&finalHash[0], &hash[0], 64);
+    std::memcpy(&finalHash[0], &m_hash[0], m_outputHashLength);
 
     return finalHash;
 }
 
-void compress(
-    std::vector<uint64_t> &hash,
-    const std::vector<uint64_t> chunk,
-    const uint64_t bytesCompressed,
-    const bool finalChunk)
+void Blake2b::compress(const bool finalChunk)
 {
     std::vector<uint64_t> v(16);
 
     /* v[0..7] = h[0..7] */
-    std::copy(hash.begin(), hash.end(), v.begin());
+    std::copy(m_hash.begin(), m_hash.end(), v.begin());
 
     /* v[8..15] = IV[0..7] */
     std::copy(IV.begin(), IV.end(), v.begin() + 8);
@@ -173,7 +227,7 @@ void compress(
         v[13] ^= HI(bytesCompressed),
       but we are not supporting messages > 2^64, so the high bits will always
       be zero. Since XOR with 0 is a no-op, we can skip the second operation. */
-    v[12] ^= bytesCompressed;
+    v[12] ^= m_bytesCompressed;
 
     /* If this is the last block, then invert all the bits in v[14] */
     if (finalChunk)
@@ -187,20 +241,22 @@ void compress(
         /* Get the sigma constant for the current round */
         const auto &sigma = SIGMA[i % 10];
 
-        mix(v[0], v[4], v[8],  v[12], chunk[sigma[0]],  chunk[sigma[1]]);
-        mix(v[1], v[5], v[9],  v[13], chunk[sigma[2]],  chunk[sigma[3]]);
-        mix(v[2], v[6], v[10], v[14], chunk[sigma[4]],  chunk[sigma[5]]);
-        mix(v[3], v[7], v[11], v[15], chunk[sigma[6]],  chunk[sigma[7]]);
+        /* Column round */
+        mix(v[0], v[4], v[8],  v[12], m_chunk[sigma[0]],  m_chunk[sigma[1]]);
+        mix(v[1], v[5], v[9],  v[13], m_chunk[sigma[2]],  m_chunk[sigma[3]]);
+        mix(v[2], v[6], v[10], v[14], m_chunk[sigma[4]],  m_chunk[sigma[5]]);
+        mix(v[3], v[7], v[11], v[15], m_chunk[sigma[6]],  m_chunk[sigma[7]]);
 
-        mix(v[0], v[5], v[10], v[15], chunk[sigma[8]],  chunk[sigma[9]]);
-        mix(v[1], v[6], v[11], v[12], chunk[sigma[10]], chunk[sigma[11]]);
-        mix(v[2], v[7], v[8],  v[13], chunk[sigma[12]], chunk[sigma[13]]);
-        mix(v[3], v[4], v[9],  v[14], chunk[sigma[14]], chunk[sigma[15]]);
+        /* Diagonal round */
+        mix(v[0], v[5], v[10], v[15], m_chunk[sigma[8]],  m_chunk[sigma[9]]);
+        mix(v[1], v[6], v[11], v[12], m_chunk[sigma[10]], m_chunk[sigma[11]]);
+        mix(v[2], v[7], v[8],  v[13], m_chunk[sigma[12]], m_chunk[sigma[13]]);
+        mix(v[3], v[4], v[9],  v[14], m_chunk[sigma[14]], m_chunk[sigma[15]]);
     }
 
     for (int i = 0; i < 8; i++)
     {
-        hash[i] ^= v[i] ^ v[i + 8];
+        m_hash[i] ^= v[i] ^ v[i + 8];
     }
 }
 
