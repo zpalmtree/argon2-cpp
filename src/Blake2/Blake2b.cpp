@@ -141,10 +141,13 @@ void Blake2b::Init(
 /* Break input into 128 byte chunks and process in turn */
 void Blake2b::Update(const std::vector<uint8_t> &data)
 {
+    return Update(&data[0], data.size());
+}
+
+void Blake2b::Update(const uint8_t *data, size_t len)
+{
     /* 128 byte chunk to process */
     std::vector<uint64_t> chunk(16);
-
-    size_t len = data.size();
 
     size_t offset = 0;
 
@@ -174,7 +177,7 @@ void Blake2b::Update(const std::vector<uint8_t> &data)
            since that does not allow non 8 byte aligned offsets */
         ptr = static_cast<uint8_t *>(ptr) + m_chunkSize;
 
-        std::memcpy(ptr, &data[offset], size);
+        std::memcpy(ptr, data + offset, size);
 
         /* Update stored chunk length */
         m_chunkSize += size;

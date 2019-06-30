@@ -8,6 +8,8 @@
 
 #include <vector>
 
+#include "Argon2/Argon2.h"
+
 #include "Blake2/Blake2b.h"
 
 std::string byteArrayToHexString(const std::vector<uint8_t> &input)
@@ -34,6 +36,42 @@ int main()
     {
         throw std::runtime_error("Bad result");
     }
+
+    const std::vector<uint8_t> password = {
+        1, 1, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 1, 1
+    };
+
+    const std::vector<uint8_t> salt = {
+        2, 2, 2, 2, 2, 2, 2, 2,
+        2, 2, 2, 2, 2, 2, 2, 2
+    };
+
+    const std::vector<uint8_t> key = {
+        3, 3, 3, 3, 3, 3, 3, 3
+    };
+
+    const std::vector<uint8_t> associatedData = {
+        4, 4, 4, 4, 4, 4, 4, 4,
+        4, 4, 4, 4
+    };
+
+    const auto hash = Argon2Internal(
+        password,
+        salt,
+        4,
+        32,
+        32,
+        3,
+        19,
+        key,
+        associatedData,
+        2
+    );
+
+    std::cout << byteArrayToHexString(hash) << std::endl;
 
     std::cout << "Tests passed" << std::endl;
 

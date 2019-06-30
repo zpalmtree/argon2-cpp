@@ -24,6 +24,7 @@ class Blake2b
             const uint8_t outputHashLength = 64);
 
         void Update(const std::vector<uint8_t> &data);
+        void Update(const uint8_t *data, size_t len);
 
         std::vector<uint8_t> Finalize();
 
