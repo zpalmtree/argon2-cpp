@@ -64,9 +64,9 @@ constexpr std::array<
     { 10, 2,  8,  4,  7,  6,  1,  5,  15, 11, 9,  14, 3,  12, 13, 0  }
 }};
 
-std::vector<uint8_t> Blake2b(const std::vector<uint8_t> &message)
+std::vector<uint8_t> Blake2b::Hash(const std::vector<uint8_t> &message)
 {
-    class Blake2b blake;
+    Blake2b blake;
 
     blake.Init();
     blake.Update(message);
@@ -74,9 +74,9 @@ std::vector<uint8_t> Blake2b(const std::vector<uint8_t> &message)
     return blake.Finalize();
 }
 
-std::vector<uint8_t> Blake2b(const std::string &message)
+std::vector<uint8_t> Blake2b::Hash(const std::string &message)
 {
-    class Blake2b blake;
+    Blake2b blake;
 
     blake.Init();
     blake.Update({message.begin(), message.end()});

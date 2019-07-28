@@ -10,10 +10,6 @@
 
 #include <vector>
 
-std::vector<uint8_t> Blake2b(const std::vector<uint8_t> &message);
-
-std::vector<uint8_t> Blake2b(const std::string &message);
-
 class Blake2b
 {
     public:
@@ -27,6 +23,9 @@ class Blake2b
         void Update(const uint8_t *data, size_t len);
 
         std::vector<uint8_t> Finalize();
+
+        static std::vector<uint8_t> Hash(const std::vector<uint8_t> &message);
+        static std::vector<uint8_t> Hash(const std::string &message);
 
     private:
         void compress(const bool finalChunk);
