@@ -31,5 +31,10 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # Pop binaries in the root build folder, not nested
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
 
+# Set optimization on by default
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE "Release")
+endif()
+
 add_subdirectory(src)
 add_subdirectory(tests)

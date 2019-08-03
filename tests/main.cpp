@@ -1,5 +1,7 @@
 #include <iostream>
 
+#include <chrono>
+
 #include <functional>
 
 #include <vector>
@@ -67,6 +69,16 @@ int main()
         4, 4, 4, 4
     };
 
+    const std::vector<uint8_t> chukwaInput = {
+        1, 0, 251, 142, 138, 200, 5, 137, 147, 35, 55, 27, 183, 144, 219, 25,
+        33, 138, 253, 141, 184, 227, 117, 93, 139, 144, 243, 155, 61, 85, 6,
+        169, 171, 206, 79, 169, 18, 36, 69, 0, 0, 0, 0, 238, 129, 70, 212, 159,
+        169, 62, 231, 36, 222, 181, 125, 18, 203, 198, 198, 243, 185, 36, 217,
+        70, 18, 124, 122, 151, 65, 143, 147, 72, 130, 143, 15, 2
+    };
+
+    const std::vector<uint8_t> chukwaSalt(chukwaInput.begin(), chukwaInput.begin() + 16);
+
     const auto argonHash = [&password, &salt, &key, &associatedData](const Constants::ArgonVariant variant)
     {
         return Argon2::DeriveKey(
@@ -85,6 +97,9 @@ int main()
     const auto argon2DExpected = "512b391b6f1162975371d30919734294f868e3be3984f3c1a13a4db9fabe4acb";
     const auto argon2IExpected = "c814d9d1dc7f37aa13f0d77f2494bda1c8de6b016dd388d29952a4c4672b6ce8";
     const auto argon2IDExpected = "0d640df58d78766c08c037a34a8b53c9d01ef0452d75b65eb52520e96b01e659";
+    const auto chukwaExpected = "c0dad0eeb9c52e92a1c3aa5b76a3cb90bd7376c28dce191ceeb1096e3a390d2e";
+
+    Argon2 chukwa(Constants::ARGON2ID, {}, {}, 3, 512, 1, 32);
 
     results.push_back(testHashFunction(argon2DExpected, "Argon2D", [argonHash](){
         return argonHash(Constants::ARGON2D);
@@ -107,6 +122,29 @@ int main()
     results.push_back(testHashFunction(argon2DExpected, "Argon General 2/2", [&argon2, &password, &salt](){
         return argon2.Hash(password, salt);
     }));
+
+    results.push_back(testHashFunction(chukwaExpected, "TurtleCoin Compatibility", [&chukwaInput, &chukwaSalt, &chukwa](){
+        return chukwa.Hash(chukwaInput, chukwaSalt);
+    }));
+
+    const int iterations = 5000;
+
+    std::cout << "Running benchmark, " << iterations << " iterations." << std::endl;
+
+    const auto begin = std::chrono::high_resolution_clock::now();
+
+    for (int i = 0; i < iterations; i++)
+    {
+        /* So the hashes are always different */
+        std::vector<uint8_t> input = chukwaInput;
+        input.push_back(i);
+
+        chukwa.Hash(input, chukwaSalt);
+    }
+
+    const auto elapsedTime = std::chrono::high_resolution_clock::now() - begin;
+
+    std::cout << "Benchmark results: " << (iterations / std::chrono::duration_cast<std::chrono::seconds>(elapsedTime).count()) << " H/s\n";
 
     const bool success = std::all_of(results.begin(), results.end(), [](const bool x) { return x; });
 
