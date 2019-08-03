@@ -10,9 +10,12 @@ namespace Constants
 {
     constexpr uint32_t CURRENT_ARGON_VERSION = 19;
 
-    constexpr uint8_t ARGON2D = 0;
-    constexpr uint8_t ARGON2I = 1;
-    constexpr uint8_t ARGON2ID = 2;
+    enum ArgonVariant
+    {
+        ARGON2D = 0,
+        ARGON2I = 1,
+        ARGON2ID = 2,
+    };
 
     /* Parallelism must be < 2^24 - 1 */
     constexpr uint32_t MAX_PARALLELISM = (1 << 24) - 1;
