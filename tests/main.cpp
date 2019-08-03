@@ -69,7 +69,7 @@ int main()
 
     const auto argonHash = [&password, &salt, &key, &associatedData](const Constants::ArgonVariant variant)
     {
-        return deriveKey(
+        return Argon2::DeriveKey(
             variant,
             password,
             salt,
@@ -96,6 +96,16 @@ int main()
 
     results.push_back(testHashFunction(argon2IDExpected, "Argon2ID", [argonHash](){
         return argonHash(Constants::ARGON2ID);
+    }));
+
+    Argon2 argon2(Constants::ARGON2D, key, associatedData, 3, 32, 4, 32);
+
+    results.push_back(testHashFunction(argon2DExpected, "Argon General 1/2", [&argon2, &password, &salt](){
+        return argon2.Hash(password, salt);
+    }));
+
+    results.push_back(testHashFunction(argon2DExpected, "Argon General 2/2", [&argon2, &password, &salt](){
+        return argon2.Hash(password, salt);
     }));
 
     const bool success = std::all_of(results.begin(), results.end(), [](const bool x) { return x; });

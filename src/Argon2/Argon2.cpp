@@ -22,7 +22,40 @@
 
 #include <tuple>
 
-std::vector<uint8_t> Argon2d(
+Argon2::Argon2(
+    const Constants::ArgonVariant mode,
+    const std::vector<uint8_t> &secret,
+    const std::vector<uint8_t> &data,
+    const uint32_t time,
+    const uint32_t memory,
+    const uint32_t threads,
+    const uint32_t keyLen):
+    m_mode(mode),
+    m_secret(secret),
+    m_data(data),
+    m_time(time),
+    m_memory(memory),
+    m_threads(threads),
+    m_keyLen(keyLen)
+{
+    uint32_t scratchpadSize 
+        = memory / (Constants::SYNC_POINTS * threads) * (Constants::SYNC_POINTS * threads);
+
+    if (scratchpadSize < 2 * Constants::SYNC_POINTS * threads)
+    {
+        scratchpadSize = 2 * Constants::SYNC_POINTS * threads;
+    }
+
+    m_scratchpadSize = scratchpadSize;
+    m_lanes = m_scratchpadSize / m_threads;
+    m_segments = m_lanes / Constants::SYNC_POINTS;
+
+    m_B = std::vector<Block>(m_scratchpadSize);
+
+    validateParameters();
+}
+
+std::vector<uint8_t> Argon2::Argon2d(
     const std::vector<uint8_t> &message,
     const std::vector<uint8_t> &salt,
     const uint32_t time, /* Or iterations */
@@ -30,10 +63,8 @@ std::vector<uint8_t> Argon2d(
     const uint32_t threads, /* Or parallelism */
     const uint32_t keyLen /* Output hash length */)
 {
-    return deriveKey(
+    Argon2 argon = Argon2(
         Constants::ARGON2D,
-        message,
-        salt,
         {},
         {},
         time,
@@ -41,9 +72,11 @@ std::vector<uint8_t> Argon2d(
         threads,
         keyLen
     );
+
+    return argon.Hash(message, salt);
 }
 
-std::vector<uint8_t> Argon2i(
+std::vector<uint8_t> Argon2::Argon2i(
     const std::vector<uint8_t> &message,
     const std::vector<uint8_t> &salt,
     const uint32_t time, /* Or iterations */
@@ -51,10 +84,8 @@ std::vector<uint8_t> Argon2i(
     const uint32_t threads, /* Or parallelism */
     const uint32_t keyLen /* Output hash length */)
 {
-    return deriveKey(
+    Argon2 argon = Argon2(
         Constants::ARGON2I,
-        message,
-        salt,
         {},
         {},
         time,
@@ -62,9 +93,11 @@ std::vector<uint8_t> Argon2i(
         threads,
         keyLen
     );
+
+    return argon.Hash(message, salt);
 }
 
-std::vector<uint8_t> Argon2id(
+std::vector<uint8_t> Argon2::Argon2id(
     const std::vector<uint8_t> &message,
     const std::vector<uint8_t> &salt,
     const uint32_t time, /* Or iterations */
@@ -72,10 +105,8 @@ std::vector<uint8_t> Argon2id(
     const uint32_t threads, /* Or parallelism */
     const uint32_t keyLen /* Output hash length */)
 {
-    return deriveKey(
+    Argon2 argon = Argon2(
         Constants::ARGON2ID,
-        message,
-        salt,
         {},
         {},
         time,
@@ -83,10 +114,12 @@ std::vector<uint8_t> Argon2id(
         threads,
         keyLen
     );
+
+    return argon.Hash(message, salt);
 }
 
-std::vector<uint8_t> deriveKey(
-    const uint32_t mode,
+std::vector<uint8_t> Argon2::DeriveKey(
+    const Constants::ArgonVariant mode,
     const std::vector<uint8_t> &message,
     const std::vector<uint8_t> &salt,
     const std::vector<uint8_t> &secret,
@@ -96,39 +129,44 @@ std::vector<uint8_t> deriveKey(
     const uint32_t threads,
     const uint32_t keyLen)
 {
-    validateParameters(salt, threads, keyLen, memory, time, mode);
-
-    std::vector<uint8_t> h0 = initHash(
-        message, salt, secret, data, time, memory, threads, keyLen, mode
+    Argon2 argon = Argon2(
+        mode,
+        secret,
+        data,
+        time,
+        memory,
+        threads,
+        keyLen
     );
 
-    memory = memory / (Constants::SYNC_POINTS * threads) * (Constants::SYNC_POINTS * threads);
-
-    if (memory < 2 * Constants::SYNC_POINTS * threads)
-    {
-        memory = 2 * Constants::SYNC_POINTS * threads;
-    }
-
-    auto B = initBlocks(h0, memory, threads);
-
-    processBlocks(B, time, memory, threads, mode);
-
-    return extractKey(B, memory, threads, keyLen);
+    return argon.Hash(message, salt);
 }
 
-std::vector<uint8_t> initHash(
+std::vector<uint8_t> Argon2::Hash(
     const std::vector<uint8_t> &message,
-    const std::vector<uint8_t> &salt,
-    const std::vector<uint8_t> &key,
-    const std::vector<uint8_t> &data,
-    const uint32_t time,
-    const uint32_t memory,
-    const uint32_t threads,
-    const uint32_t keyLen,
-    const uint32_t mode)
+    const std::vector<uint8_t> &salt)
 {
-    const uint32_t version = Constants::CURRENT_ARGON_VERSION;
+    /* Zero out the scratchpad for if we're using Hash() repeatedly */
+    std::memset(m_B.data(), 0, sizeof(Block) * m_B.size());
 
+    if (salt.size() < Constants::MIN_SALT_SIZE)
+    {
+        throw std::invalid_argument("Salt must be at least 8 bytes!");
+    }
+
+    std::vector<uint8_t> h0 = initHash(message, salt);
+
+    initBlocks(h0);
+
+    processBlocks();
+
+    return extractKey();
+}
+
+std::vector<uint8_t> Argon2::initHash(
+    const std::vector<uint8_t> &message,
+    const std::vector<uint8_t> &salt)
+{
     uint32_t size;
 
     /* Can either do this step by appending everything to one vector then
@@ -138,12 +176,12 @@ std::vector<uint8_t> initHash(
     /* STEP 2: Initialize first hash */
     blake.Init();
 
-    blake.Update(reinterpret_cast<const uint8_t *>(&threads), sizeof(threads));
-    blake.Update(reinterpret_cast<const uint8_t *>(&keyLen), sizeof(keyLen));
-    blake.Update(reinterpret_cast<const uint8_t *>(&memory), sizeof(memory));
-    blake.Update(reinterpret_cast<const uint8_t *>(&time), sizeof(time));
-    blake.Update(reinterpret_cast<const uint8_t *>(&version), sizeof(version));
-    blake.Update(reinterpret_cast<const uint8_t *>(&mode), sizeof(mode));
+    blake.Update(reinterpret_cast<const uint8_t *>(&m_threads), sizeof(m_threads));
+    blake.Update(reinterpret_cast<const uint8_t *>(&m_keyLen), sizeof(m_keyLen));
+    blake.Update(reinterpret_cast<const uint8_t *>(&m_memory), sizeof(m_memory));
+    blake.Update(reinterpret_cast<const uint8_t *>(&m_time), sizeof(m_time));
+    blake.Update(reinterpret_cast<const uint8_t *>(&m_version), sizeof(m_version));
+    blake.Update(reinterpret_cast<const uint8_t *>(&m_mode), sizeof(m_mode));
 
     size = message.size();
     blake.Update(reinterpret_cast<const uint8_t *>(&size), sizeof(size));
@@ -153,31 +191,26 @@ std::vector<uint8_t> initHash(
     blake.Update(reinterpret_cast<const uint8_t *>(&size), sizeof(size));
     blake.Update(salt.data(), size);
 
-    size = key.size();
+    size = m_secret.size();
     blake.Update(reinterpret_cast<const uint8_t *>(&size), sizeof(size));
-    blake.Update(key.data(), size);
+    blake.Update(m_secret.data(), size);
 
-    size = data.size();
+    size = m_data.size();
     blake.Update(reinterpret_cast<const uint8_t *>(&size), sizeof(size));
-    blake.Update(data.data(), size);
+    blake.Update(m_data.data(), size);
 
     return blake.Finalize();
 }
 
-std::vector<Block> initBlocks(
-    std::vector<uint8_t> &h0,
-    const uint32_t memory,
-    const uint32_t threads)
+void Argon2::initBlocks(std::vector<uint8_t> &h0)
 {
     h0.resize(Constants::INITIAL_HASH_SIZE, 0);
 
     uint8_t block0[Constants::BLOCK_SIZE_BYTES];
 
-    std::vector<Block> B(memory);
-
-    for (uint32_t lane = 0; lane < threads; lane++)
+    for (uint32_t lane = 0; lane < m_threads; lane++)
     {
-        int j = lane * (memory / threads);
+        int j = lane * (m_memory / m_threads);
 
         /* Pop 0 into h0[64..67] */
         h0[64] = 0;
@@ -189,7 +222,7 @@ std::vector<Block> initBlocks(
 
         for (int i = 0; i < Constants::BLOCK_SIZE; i++)
         {
-            std::memcpy(&B[j][i], &block0[i * 8], sizeof(uint64_t));
+            std::memcpy(&m_B[j][i], &block0[i * 8], sizeof(uint64_t));
         }
 
         /* Pop 1 into hash[64..67] */
@@ -202,61 +235,46 @@ std::vector<Block> initBlocks(
             std::vector<uint8_t> tmp;
 
             tmp.assign(&block0[i * 8], &block0[8 + (i * 8)]);
-            std::memcpy(&B[j+1][i], &block0[i * 8], sizeof(uint64_t));
+            std::memcpy(&m_B[j+1][i], &block0[i * 8], sizeof(uint64_t));
         }
     }
-
-    return B;
 }
 
-void processBlocks(
-    std::vector<Block> &B,
-    const uint32_t time,
-    const uint32_t memory,
-    const uint32_t threads,
-    const uint32_t mode)
+void Argon2::processBlocks()
 {
-    for (uint32_t i = 0; i < time; i++)
+    for (uint32_t i = 0; i < m_time; i++)
     {
         for (uint32_t slice = 0; slice < Constants::SYNC_POINTS; slice++)
         {
-            for (uint32_t lane = 0; lane < threads; lane++)
+            for (uint32_t lane = 0; lane < m_threads; lane++)
             {
                 /* TODO: thread */
                 /* Maybe use a std::function<> lambda? */
-                processSegment(i, slice, lane, B, mode, memory, time, threads);
+                processSegment(i, slice, lane);
             }
         }
     }
 }
 
-void processSegment(
+void Argon2::processSegment(
     const uint32_t n,
     const uint32_t slice,
-    const uint32_t lane,
-    std::vector<Block> &B,
-    const uint32_t mode,
-    const uint32_t memory,
-    const uint32_t time,
-    const uint32_t threads)
+    const uint32_t lane)
 {
-    const uint32_t lanes = memory / threads;
-    const uint32_t segments = lanes / Constants::SYNC_POINTS;
-
     /* Default initializing to zero */
     Block addresses {};
     Block in {};
     Block zero {};
 
-    if (mode == Constants::ARGON2I
-    || (mode == Constants::ARGON2ID && n == 0 && slice < Constants::SYNC_POINTS / 2))
+    if (m_mode == Constants::ARGON2I
+    || (m_mode == Constants::ARGON2ID && n == 0 && slice < Constants::SYNC_POINTS / 2))
     {
         in[0] = n;
         in[1] = lane;
         in[2] = slice;
-        in[3] = memory;
-        in[4] = time;
-        in[5] = mode;
+        in[3] = m_scratchpadSize;
+        in[4] = m_time;
+        in[5] = m_mode;
     }
 
     uint32_t index = 0;
@@ -265,7 +283,7 @@ void processSegment(
     {
         index = 2;
 
-        if (mode == Constants::ARGON2I || mode == Constants::ARGON2ID)
+        if (m_mode == Constants::ARGON2I || m_mode == Constants::ARGON2ID)
         {
             in[6]++;
             processBlock(addresses, in, zero);
@@ -273,23 +291,23 @@ void processSegment(
         }
     }
 
-    uint32_t offset = lane * lanes + slice * segments + index;
+    uint32_t offset = lane * m_lanes + slice * m_segments + index;
 
     uint64_t random;
 
-    while (index < segments)
+    while (index < m_segments)
     {
         uint32_t prev = offset - 1;
 
         /* Last block in lane */
         if (index == 0 && slice == 0)
         {
-            prev += lanes;
+            prev += m_lanes;
         }
 
         /* TODO: Combine */
-        if (mode == Constants::ARGON2I
-        || (mode == Constants::ARGON2ID && n == 0 && slice < Constants::SYNC_POINTS / 2))
+        if (m_mode == Constants::ARGON2I
+        || (m_mode == Constants::ARGON2ID && n == 0 && slice < Constants::SYNC_POINTS / 2))
         {
             if (index % Constants::BLOCK_SIZE == 0)
             {
@@ -302,19 +320,19 @@ void processSegment(
         }
         else
         {
-            random = B[prev][0];
+            random = m_B[prev][0];
         }
 
-        uint32_t newOffset = indexAlpha(random, lanes, segments, threads, n, slice, lane, index);
+        uint32_t newOffset = indexAlpha(random, n, slice, lane, index);
 
-        processBlockXOR(B[offset], B[prev], B[newOffset]);
+        processBlockXOR(m_B[offset], m_B[prev], m_B[newOffset]);
 
         index++;
         offset++;
     }
 }
 
-void blake2bHash(
+void Argon2::blake2bHash(
     uint8_t *out,
     std::vector<uint8_t> input,
     uint32_t outputLength)
@@ -381,19 +399,13 @@ void blake2bHash(
     std::copy(buffer.begin(), buffer.end(), out);
 }
 
-std::vector<uint8_t> extractKey(
-    std::vector<Block> &B,
-    const uint32_t memory,
-    const uint32_t threads,
-    const uint32_t keyLen)
+std::vector<uint8_t> Argon2::extractKey()
 {
-    const uint32_t lanes = memory / threads;
-
-    for (uint32_t lane = 0; lane < threads - 1; lane++)
+    for (uint32_t lane = 0; lane < m_threads - 1; lane++)
     {
         for (uint32_t i = 0; i < Constants::BLOCK_SIZE; i++)
         {
-            B[memory - 1][i] ^= B[(lane * lanes) + lanes - 1][i];
+            m_B[m_memory - 1][i] ^= m_B[(lane * m_lanes) + m_lanes - 1][i];
         }
     }
 
@@ -401,17 +413,17 @@ std::vector<uint8_t> extractKey(
 
     for (uint32_t i = 0; i < Constants::BLOCK_SIZE; i++)
     {
-        std::memcpy(&block[i * 8], &B[memory - 1][i], sizeof(uint64_t));
+        std::memcpy(&block[i * 8], &m_B[m_scratchpadSize - 1][i], sizeof(uint64_t));
     }
 
-    std::vector<uint8_t> key(keyLen);
+    std::vector<uint8_t> key(m_keyLen);
 
-    blake2bHash(key.data(), block, keyLen);
+    blake2bHash(key.data(), block, m_keyLen);
 
     return key;
 }
 
-void processBlockGeneric(
+void Argon2::processBlockGeneric(
     Block &out,
     Block &in1,
     Block &in2,
@@ -484,7 +496,7 @@ void processBlockGeneric(
     }
 }
 
-void blamkaGeneric(
+void Argon2::blamkaGeneric(
     uint64_t &t00,
     uint64_t &t01,
     uint64_t &t02,
@@ -637,7 +649,7 @@ void blamkaGeneric(
     t15 = v15;
 }
 
-void processBlock(
+void Argon2::processBlock(
     Block &out,
     Block &in1,
     Block &in2)
@@ -645,7 +657,7 @@ void processBlock(
     processBlockGeneric(out, in1, in2, false);
 }
 
-void processBlockXOR(
+void Argon2::processBlockXOR(
     Block &out,
     Block &in1,
     Block &in2)
@@ -653,25 +665,22 @@ void processBlockXOR(
     processBlockGeneric(out, in1, in2, true);
 }
 
-uint32_t indexAlpha(
+uint32_t Argon2::indexAlpha(
     const uint64_t random,
-    const uint32_t lanes,
-    const uint32_t segments,
-    const uint32_t threads,
     const uint32_t n,
     const uint32_t slice,
     const uint32_t lane,
     const uint32_t index)
 {
-    uint32_t refLane = static_cast<uint32_t>(random >> 32) % threads;
+    uint32_t refLane = static_cast<uint32_t>(random >> 32) % m_threads;
 
     if (n == 0 && slice == 0)
     {
         refLane = lane;
     }
 
-    uint32_t m = 3 * segments;
-    uint32_t s = ((slice + 1) % Constants::SYNC_POINTS) * segments;
+    uint32_t m = 3 * m_segments;
+    uint32_t s = ((slice + 1) % Constants::SYNC_POINTS) * m_segments;
 
     if (lane == refLane)
     {
@@ -680,7 +689,7 @@ uint32_t indexAlpha(
 
     if (n == 0)
     {
-        m = slice * segments;
+        m = slice * m_segments;
         s = 0;
 
         if (slice == 0 || lane == refLane)
@@ -694,60 +703,47 @@ uint32_t indexAlpha(
         m--;
     }
 
-    return phi(random, m, s, refLane, lanes);
+    return phi(random, m, s, refLane);
 }
 
-uint32_t phi(
+uint32_t Argon2::phi(
     const uint64_t random,
     uint64_t m,
     uint64_t s,
-    const uint32_t lane,
-    const uint32_t lanes)
+    const uint32_t lane)
 {
     uint64_t p = random & 0xFFFFFFFF;
     p = (p * p) >> 32;
     p = (p * m) >> 32;
 
-    return lane * lanes + static_cast<uint32_t>((s + m - (p + 1)) % static_cast<uint64_t>(lanes));
+    return lane * m_lanes + static_cast<uint32_t>((s + m - (p + 1)) % static_cast<uint64_t>(m_lanes));
 }
 
-void validateParameters(
-    const std::vector<uint8_t> &salt,
-    const uint32_t threads,
-    const uint32_t keyLen,
-    const uint32_t memory,
-    const uint32_t time,
-    const uint32_t mode)
+void Argon2::validateParameters()
 {
-
-    if (salt.size() < Constants::MIN_SALT_SIZE)
-    {
-        throw std::invalid_argument("Salt must be at least 8 bytes!");
-    }
-
-    if (threads == 0 || threads > Constants::MAX_PARALLELISM)
+    if (m_threads == 0 || m_threads > Constants::MAX_PARALLELISM)
     {
         throw std::invalid_argument("Threads must be between 1 and 2^24 - 1!");
     }
 
-    if (keyLen < Constants::MIN_OUTPUT_HASH_LENGTH)
+    if (m_keyLen < Constants::MIN_OUTPUT_HASH_LENGTH)
     {
         throw std::invalid_argument("Key len must be at least 4 bytes!");
     }
 
-    if (memory < Constants::MIN_PARALLELISM_FACTOR * threads)
+    if (m_memory < Constants::MIN_PARALLELISM_FACTOR * m_threads)
     {
         throw std::invalid_argument("Memory must be at least 8 * threads (kb)!");
     }
 
-    if (time == 0)
+    if (m_time == 0)
     {
         throw std::invalid_argument("Time must be at least 1!");
     }
 
-    if (mode != Constants::ARGON2D
-     && mode != Constants::ARGON2I
-     && mode != Constants::ARGON2ID)
+    if (m_mode != Constants::ARGON2D
+     && m_mode != Constants::ARGON2I
+     && m_mode != Constants::ARGON2ID)
     {
         std::stringstream stream;
 

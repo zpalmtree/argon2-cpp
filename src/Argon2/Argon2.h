@@ -8,142 +8,178 @@
 
 #include <vector>
 
+#include "Argon2/Constants.h"
+
 typedef uint64_t Block[128];
 
-std::vector<uint8_t> Argon2d(
-    const std::vector<uint8_t> &message,
-    const std::vector<uint8_t> &salt,
-    const uint32_t time, /* Or iterations */
-    const uint32_t memory,
-    const uint32_t threads, /* Or parallelism */
-    const uint32_t keyLen /* Output hash length */);
+class Argon2
+{
+    public:
+        /* CONSTRUCTOR */
 
-std::vector<uint8_t> Argon2i(
-    const std::vector<uint8_t> &message,
-    const std::vector<uint8_t> &salt,
-    const uint32_t time, /* Or iterations */
-    const uint32_t memory,
-    const uint32_t threads, /* Or parallelism */
-    const uint32_t keyLen /* Output hash length */);
+        Argon2(
+            const Constants::ArgonVariant mode,
+            const std::vector<uint8_t> &secret,
+            const std::vector<uint8_t> &data,
+            const uint32_t time,
+            const uint32_t memory,
+            const uint32_t threads,
+            const uint32_t keyLen);
 
-std::vector<uint8_t> Argon2id(
-    const std::vector<uint8_t> &message,
-    const std::vector<uint8_t> &salt,
-    const uint32_t time, /* Or iterations */
-    const uint32_t memory,
-    const uint32_t threads, /* Or parallelism */
-    const uint32_t keyLen /* Output hash length */);
+        /* PUBLIC STATIC METHODS */
 
-std::vector<uint8_t> deriveKey(
-    const uint32_t mode,
-    const std::vector<uint8_t> &message,
-    const std::vector<uint8_t> &salt,
-    const std::vector<uint8_t> &secret,
-    const std::vector<uint8_t> &data,
-    const uint32_t time,
-    const uint32_t memory,
-    const uint32_t threads,
-    const uint32_t keyLen);
+        static std::vector<uint8_t> Argon2d(
+            const std::vector<uint8_t> &message,
+            const std::vector<uint8_t> &salt,
+            const uint32_t time, /* Or iterations */
+            const uint32_t memory,
+            const uint32_t threads, /* Or parallelism */
+            const uint32_t keyLen /* Output hash length */);
 
-void validateParameters(
-    const std::vector<uint8_t> &salt,
-    const uint32_t threads,
-    const uint32_t keyLen,
-    const uint32_t memory,
-    const uint32_t time,
-    const uint32_t mode);
+        static std::vector<uint8_t> Argon2i(
+            const std::vector<uint8_t> &message,
+            const std::vector<uint8_t> &salt,
+            const uint32_t time, /* Or iterations */
+            const uint32_t memory,
+            const uint32_t threads, /* Or parallelism */
+            const uint32_t keyLen /* Output hash length */);
 
-std::vector<uint8_t> initHash(
-    const std::vector<uint8_t> &message,
-    const std::vector<uint8_t> &salt,
-    const std::vector<uint8_t> &key,
-    const std::vector<uint8_t> &data,
-    const uint32_t time,
-    const uint32_t memory,
-    const uint32_t threads,
-    const uint32_t keyLen,
-    const uint32_t mode);
+        static std::vector<uint8_t> Argon2id(
+            const std::vector<uint8_t> &message,
+            const std::vector<uint8_t> &salt,
+            const uint32_t time, /* Or iterations */
+            const uint32_t memory,
+            const uint32_t threads, /* Or parallelism */
+            const uint32_t keyLen /* Output hash length */);
 
-std::vector<Block> initBlocks(
-    std::vector<uint8_t> &h0,
-    const uint32_t memory,
-    const uint32_t threads);
+        static std::vector<uint8_t> DeriveKey(
+            const Constants::ArgonVariant mode,
+            const std::vector<uint8_t> &message,
+            const std::vector<uint8_t> &salt,
+            const std::vector<uint8_t> &secret,
+            const std::vector<uint8_t> &data,
+            const uint32_t time,
+            const uint32_t memory,
+            const uint32_t threads,
+            const uint32_t keyLen);
 
-void processBlocks(
-    std::vector<Block> &B,
-    const uint32_t time,
-    const uint32_t memory,
-    const uint32_t threads,
-    const uint32_t mode);
+        /* PUBLIC METHODS */
 
-void processSegment(
-    const uint32_t n,
-    const uint32_t slice,
-    const uint32_t lane,
-    std::vector<Block> &B,
-    const uint32_t mode,
-    const uint32_t memory,
-    const uint32_t time,
-    const uint32_t threads);
+        std::vector<uint8_t> Hash(
+            const std::vector<uint8_t> &message,
+            const std::vector<uint8_t> &salt);
 
-void blake2bHash(
-    uint8_t *out,
-    std::vector<uint8_t> input,
-    uint32_t outputLength);
+    private:
+        /* DEFINITIONS */
 
-std::vector<uint8_t> extractKey(
-    std::vector<Block> &block,
-    const uint32_t memory,
-    const uint32_t threads,
-    const uint32_t keyLen);
+        //typedef uint64_t Block[128];
 
-void processBlockGeneric(
-    Block &out,
-    Block &in1,
-    Block &in2,
-    const bool doXor);
+        /* PRIVATE METHODS */
 
-void blamkaGeneric(
-    uint64_t &t00,
-    uint64_t &t01,
-    uint64_t &t02,
-    uint64_t &t03,
-    uint64_t &t04,
-    uint64_t &t05,
-    uint64_t &t06,
-    uint64_t &t07,
-    uint64_t &t08,
-    uint64_t &t09,
-    uint64_t &t10,
-    uint64_t &t11,
-    uint64_t &t12,
-    uint64_t &t13,
-    uint64_t &t14,
-    uint64_t &t15);
+        void validateParameters();
 
-void processBlock(
-    Block &out,
-    Block &in1,
-    Block &in2);
+        std::vector<uint8_t> initHash(
+            const std::vector<uint8_t> &message,
+            const std::vector<uint8_t> &salt);
 
-void processBlockXOR(
-    Block &out,
-    Block &in1,
-    Block &in2);
+        void initBlocks(std::vector<uint8_t> &h0);
 
-uint32_t indexAlpha(
-    const uint64_t random,
-    const uint32_t lanes,
-    const uint32_t segments,
-    const uint32_t threads,
-    const uint32_t n,
-    const uint32_t slice,
-    const uint32_t lane,
-    const uint32_t index);
+        void processBlocks();
 
-uint32_t phi(
-    const uint64_t random,
-    uint64_t m,
-    uint64_t s,
-    const uint32_t lane,
-    const uint32_t lanes);
+        void processSegment(
+            const uint32_t n,
+            const uint32_t slice,
+            const uint32_t lane);
+
+        std::vector<uint8_t> extractKey();
+
+        void blake2bHash(
+            uint8_t *out,
+            std::vector<uint8_t> input,
+            uint32_t outputLength);
+
+        void processBlockGeneric(
+            Block &out,
+            Block &in1,
+            Block &in2,
+            const bool doXor);
+
+        void blamkaGeneric(
+            uint64_t &t00,
+            uint64_t &t01,
+            uint64_t &t02,
+            uint64_t &t03,
+            uint64_t &t04,
+            uint64_t &t05,
+            uint64_t &t06,
+            uint64_t &t07,
+            uint64_t &t08,
+            uint64_t &t09,
+            uint64_t &t10,
+            uint64_t &t11,
+            uint64_t &t12,
+            uint64_t &t13,
+            uint64_t &t14,
+            uint64_t &t15);
+
+        void processBlock(
+            Block &out,
+            Block &in1,
+            Block &in2);
+
+        void processBlockXOR(
+            Block &out,
+            Block &in1,
+            Block &in2);
+
+        uint32_t indexAlpha(
+            const uint64_t random,
+            const uint32_t n,
+            const uint32_t slice,
+            const uint32_t lane,
+            const uint32_t index);
+
+        uint32_t phi(
+            const uint64_t random,
+            uint64_t m,
+            uint64_t s,
+            const uint32_t lane);
+
+        /* PRIVATE VARIABLES */
+
+        /* The argon variant to use */
+        const Constants::ArgonVariant m_mode;
+
+        /* The associated secret data */
+        const std::vector<uint8_t> m_secret;
+
+        /* The associated data */
+        const std::vector<uint8_t> m_data;
+
+        /* The time cost / iterations */
+        const uint32_t m_time;
+
+        /* The amount of memory to use, in KB */
+        const uint32_t m_memory;
+
+        /* The adjusted amount of memory to use, in KB */
+        uint32_t m_scratchpadSize;
+
+        /* The threads / parallism value */
+        const uint32_t m_threads;
+
+        /* The output hash length */
+        const uint32_t m_keyLen;
+
+        /* The argon version we are using */
+        const uint32_t m_version = Constants::CURRENT_ARGON_VERSION;
+
+        /* The scratchpad */
+        std::vector<Block> m_B;
+
+        /* Number of lanes to use */
+        uint32_t m_lanes;
+
+        /* Number of segments to use */
+        uint32_t m_segments;
+};

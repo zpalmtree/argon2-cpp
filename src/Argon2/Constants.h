@@ -2,6 +2,8 @@
 //
 // Please see the included LICENSE file for more information.
 
+#pragma once
+
 #include <cmath>
 
 #include <cstddef>
@@ -10,7 +12,7 @@ namespace Constants
 {
     constexpr uint32_t CURRENT_ARGON_VERSION = 19;
 
-    enum ArgonVariant
+    enum ArgonVariant : uint32_t
     {
         ARGON2D = 0,
         ARGON2I = 1,
