@@ -21,8 +21,9 @@ namespace Constants
     constexpr uint32_t MAX_PARALLELISM = (1 << 24) - 1;
 
     /* Block size = 1KB = 128 * 64bit = 1024 bytes */
-    //constexpr uint32_t BLOCK_SIZE = 128;
-    constexpr uint32_t BLOCK_SIZE = 1024;
+    constexpr uint32_t BLOCK_SIZE = 128;
+
+    constexpr uint32_t BLOCK_SIZE_BYTES = BLOCK_SIZE * 8;
 
     /* Salt must be at least 8 bytes */
     constexpr uint8_t MIN_SALT_SIZE = 8;
@@ -36,7 +37,9 @@ namespace Constants
     /* Split the blocks up into 4 lanes */
     constexpr uint8_t SYNC_POINTS = 4;
 
+    /* Size of internal output hash function */
     constexpr uint8_t HASH_SIZE = 64;
 
-    constexpr uint8_t INITIAL_HASH_SIZE = 72;
+    /* Size of initial hash with space for extra data */
+    constexpr uint8_t INITIAL_HASH_SIZE = HASH_SIZE + 8;
 }

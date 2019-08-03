@@ -171,7 +171,7 @@ std::vector<Block> initBlocks(
 {
     h0.resize(Constants::INITIAL_HASH_SIZE, 0);
 
-    uint8_t block0[1024];
+    uint8_t block0[Constants::BLOCK_SIZE_BYTES];
 
     std::vector<Block> B(memory);
 
@@ -185,9 +185,9 @@ std::vector<Block> initBlocks(
         /* Copy lane into h0[68..71] */
         std::memcpy(&h0[64 + 4], &lane, sizeof(uint32_t));
 
-        blake2bHash(block0, h0, 1024);
+        blake2bHash(block0, h0, Constants::BLOCK_SIZE_BYTES);
 
-        for (int i = 0; i < 128; i++)
+        for (int i = 0; i < Constants::BLOCK_SIZE; i++)
         {
             std::memcpy(&B[j][i], &block0[i * 8], sizeof(uint64_t));
         }
@@ -195,9 +195,9 @@ std::vector<Block> initBlocks(
         /* Pop 1 into hash[64..67] */
         h0[64] = 1;
 
-        blake2bHash(block0, h0, 1024);
+        blake2bHash(block0, h0, Constants::BLOCK_SIZE_BYTES);
 
-        for (int i = 0; i < 128; i++)
+        for (int i = 0; i < Constants::BLOCK_SIZE; i++)
         {
             std::vector<uint8_t> tmp;
 
@@ -291,14 +291,14 @@ void processSegment(
         if (mode == Constants::ARGON2I
         || (mode == Constants::ARGON2ID && n == 0 && slice < Constants::SYNC_POINTS / 2))
         {
-            if (index % 128 == 0)
+            if (index % Constants::BLOCK_SIZE == 0)
             {
                 in[6]++;
                 processBlock(addresses, in, zero);
                 processBlock(addresses, addresses, zero);
             }
 
-            random = addresses[index % 128];
+            random = addresses[index % Constants::BLOCK_SIZE];
         }
         else
         {
@@ -391,15 +391,15 @@ std::vector<uint8_t> extractKey(
 
     for (uint32_t lane = 0; lane < threads - 1; lane++)
     {
-        for (uint32_t i = 0; i < 128; i++)
+        for (uint32_t i = 0; i < Constants::BLOCK_SIZE; i++)
         {
             B[memory - 1][i] ^= B[(lane * lanes) + lanes - 1][i];
         }
     }
 
-    std::vector<uint8_t> block(1024);
+    std::vector<uint8_t> block(Constants::BLOCK_SIZE_BYTES);
 
-    for (uint32_t i = 0; i < 128; i++)
+    for (uint32_t i = 0; i < Constants::BLOCK_SIZE; i++)
     {
         std::memcpy(&block[i * 8], &B[memory - 1][i], sizeof(uint64_t));
     }
@@ -419,12 +419,12 @@ void processBlockGeneric(
 {
     Block t;
 
-    for (int i = 0; i < 128; i++)
+    for (int i = 0; i < Constants::BLOCK_SIZE; i++)
     {
         t[i] = in1[i] ^ in2[i];
     }
 
-    for (int i = 0; i < 128; i += 16)
+    for (int i = 0; i < Constants::BLOCK_SIZE; i += 16)
     {
         blamkaGeneric(
             t[i + 0],
@@ -446,7 +446,7 @@ void processBlockGeneric(
         );
     }
 
-    for (int i = 0; i < 128 / 8; i += 2)
+    for (int i = 0; i < Constants::BLOCK_SIZE / 8; i += 2)
     {
         blamkaGeneric(
             t[0 + i + 0],
@@ -470,14 +470,14 @@ void processBlockGeneric(
 
     if (doXor)
     {
-        for (int i = 0; i < 128; i++)
+        for (int i = 0; i < Constants::BLOCK_SIZE; i++)
         {
             out[i] ^= in1[i] ^ in2[i] ^ t[i];
         }
     }
     else
     {
-        for (int i = 0; i < 128; i++)
+        for (int i = 0; i < Constants::BLOCK_SIZE; i++)
         {
             out[i] = in1[i] ^ in2[i] ^ t[i];
         }
