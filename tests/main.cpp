@@ -1,3 +1,7 @@
+// Copyright (c) 2019, Zpalmtree
+//
+// Please see the included LICENSE file for more information.
+
 #include <iostream>
 
 #include <chrono>
@@ -6,12 +10,27 @@
 
 #include <vector>
 
+#include <sstream>
+
+#include <iomanip>
+
 #include "Argon2/Argon2.h"
 #include "Argon2/Constants.h"
 
 #include "Blake2/Blake2b.h"
 
-#include "Utilities/Utilities.h"
+std::string byteArrayToHexString(const std::vector<uint8_t> &input)
+{
+    std::stringstream ss;
+    ss << std::hex << std::setfill('0');
+
+    for (const auto c : input)
+    {
+        ss << std::setw(2) << static_cast<unsigned>(c);
+    }
+
+    return ss.str();
+}
 
 bool testHashFunction(std::string expectedOutput, std::string testName, std::function<std::vector<uint8_t>(void)> hashFunction)
 {

@@ -10,8 +10,6 @@
 
 #include "Blake2/Blake2b.h"
 
-#include "Utilities/Utilities.h"
-
 #include <cmath>
 
 #include <cstring>
