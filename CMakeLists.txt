@@ -36,5 +36,12 @@ if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE "Release")
 endif()
 
+# Allow people using library to override this option with SET(BUILD_TESTS OFF)
+cmake_policy(SET CMP0077 NEW)
+option(BUILD_TESTS "Build the test executable?" ON)
+
 add_subdirectory(src)
-add_subdirectory(tests)
+
+if (${BUILD_TESTS})
+    add_subdirectory(tests)
+endif()
