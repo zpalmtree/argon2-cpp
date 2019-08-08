@@ -30,7 +30,7 @@ void mix(
 template<typename T>
 T rotateRight(T x, unsigned int moves)
 {
-    return (x >> moves) | (x << sizeof(T) * 8 - moves);
+    return (x >> moves) | (x << (sizeof(T) * 8 - moves));
 }
 
 /* Initialization vector */
@@ -115,7 +115,7 @@ void Blake2b::Init(
 
     if (!key.empty())
     {
-        const uint8_t keySize = key.size();
+        const uint8_t keySize = static_cast<uint8_t>(key.size());
         const uint8_t remainingBytes = 128 - keySize;
 
         /* Then copy into the next chunk to be processed */
@@ -166,7 +166,7 @@ void Blake2b::Update(const uint8_t *data, size_t len)
 
         if (size > len)
         {
-            size = len;
+            size = static_cast<uint8_t>(len);
         }
 
         /* Get void pointer to the chunk vector */

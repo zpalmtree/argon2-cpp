@@ -40,7 +40,7 @@ class Blake2b
         size_t m_bytesCompressed = 0;
 
         /* Size of chunk to process */
-        size_t m_chunkSize = 0;
+        uint8_t m_chunkSize = 0;
 
         /* Length of output hash in bytes */
         uint8_t m_outputHashLength = 64;

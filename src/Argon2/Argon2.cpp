@@ -181,19 +181,19 @@ std::vector<uint8_t> Argon2::initHash(
     blake.Update(reinterpret_cast<const uint8_t *>(&m_version), sizeof(m_version));
     blake.Update(reinterpret_cast<const uint8_t *>(&m_mode), sizeof(m_mode));
 
-    size = message.size();
+    size = static_cast<uint32_t>(message.size());
     blake.Update(reinterpret_cast<const uint8_t *>(&size), sizeof(size));
     blake.Update(message.data(), size);
 
-    size = salt.size();
+    size = static_cast<uint32_t>(salt.size());
     blake.Update(reinterpret_cast<const uint8_t *>(&size), sizeof(size));
     blake.Update(salt.data(), size);
 
-    size = m_secret.size();
+    size = static_cast<uint32_t>(m_secret.size());
     blake.Update(reinterpret_cast<const uint8_t *>(&size), sizeof(size));
     blake.Update(m_secret.data(), size);
 
-    size = m_data.size();
+    size = static_cast<uint32_t>(m_data.size());
     blake.Update(reinterpret_cast<const uint8_t *>(&size), sizeof(size));
     blake.Update(m_data.data(), size);
 
