@@ -4,13 +4,15 @@
 
 #pragma once
 
+#include <array>
+
 #include <cstdint>
 
 #include <vector>
 
 #include "Argon2/Constants.h"
 
-typedef uint64_t Block[128];
+typedef std::array<uint64_t, 128> Block;
 
 class Argon2
 {
