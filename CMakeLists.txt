@@ -37,7 +37,10 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 # Allow people using library to override this option with SET(BUILD_TESTS OFF)
-cmake_policy(SET CMP0077 NEW)
+if(POLICY CMP0077)
+    cmake_policy(SET CMP0077 NEW)
+endif()
+
 option(BUILD_TESTS "Build the test executable?" ON)
 
 add_subdirectory(src)
