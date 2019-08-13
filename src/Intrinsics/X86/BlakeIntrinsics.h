@@ -5,6 +5,10 @@
 #pragma once
 
 #include "Intrinsics/X86/IncludeIntrinsics.h"
+#include "cpu_features/include/cpuinfo_x86.h"
+
+static const cpu_features::X86Features features = cpu_features::GetX86Info().features;
+static const bool hasAVX2 = features.avx2;
 
 inline __m256i rotr32(__m256i x) {
     return _mm256_shuffle_epi32(x, _MM_SHUFFLE(2, 3, 0, 1));
@@ -71,6 +75,18 @@ inline void undiagonalize(__m256i& b, __m256i& c, __m256i& d) {
 }
 
 inline void Blake2b::compress()
+{
+    if (hasAVX2)
+    {
+        compressAVX2();
+    }
+    else
+    {
+        compressCrossPlatform();
+    }
+}
+
+inline void Blake2b::compressAVX2()
 {
     static const __m128i vindex[12][4] = {
         { _mm_set_epi32( 6,  4,  2,  0), _mm_set_epi32( 7,  5,  3,  1), _mm_set_epi32(14, 12, 10,  8), _mm_set_epi32(15, 13, 11,  9) },

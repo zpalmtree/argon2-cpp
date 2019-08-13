@@ -29,6 +29,7 @@ class Blake2b
     private:
         void compress();
         void compressCrossPlatform();
+        void compressAVX2();
 
         void incrementBytesCompressed(const uint64_t bytesCompressed);
 
