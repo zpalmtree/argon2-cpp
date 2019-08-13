@@ -41,6 +41,14 @@ if(POLICY CMP0077)
     cmake_policy(SET CMP0077 NEW)
 endif()
 
+include(CheckCXXCompilerFlag)
+
+# Need to set -march=native to allow AVX2 code to compile
+CHECK_CXX_COMPILER_FLAG("-march=native" COMPILER_SUPPORTS_MARCH_NATIVE)
+if(COMPILER_SUPPORTS_MARCH_NATIVE)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native")
+endif()
+
 option(BUILD_TESTS "Build the test executable?" ON)
 
 add_subdirectory(src)
