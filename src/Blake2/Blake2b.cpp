@@ -7,16 +7,8 @@
 ////////////////////
 
 #include <array>
-
 #include <cstring>
-
 #include <stdexcept>
-
-void compress(
-    std::vector<uint64_t> &hash,
-    const std::vector<uint64_t> chunk,
-    const uint64_t bytesCompressed,
-    const bool finalChunk);
 
 void mix(
     uint64_t &vA,
@@ -87,7 +79,6 @@ std::vector<uint8_t> Blake2b::Hash(const std::string &message)
 Blake2b::Blake2b():
     m_hash(8),
     m_chunk(16),
-    m_bytesCompressed(0),
     m_chunkSize(0),
     m_outputHashLength(64)
 {
@@ -106,6 +97,9 @@ void Blake2b::Init(
     {
         throw std::invalid_argument("Optional key must be at most 64 bytes");
     }
+
+    /* Zero the bytes compressed and final block flags */
+    std::memset(m_compressXorFlags.data(), 0, 32);
 
     /* Copy the IV to the hash */
     std::copy(IV.begin(), IV.end(), m_hash.begin());
@@ -127,14 +121,14 @@ void Blake2b::Init(
         /* Signal we have a chunk to process */
         m_chunkSize = 128;
 
-        m_bytesCompressed = 128;
+        incrementBytesCompressed(128);
     }
     else
     {
         m_chunkSize = 0;
-        m_bytesCompressed = 0;
     }
 
+    
     m_outputHashLength = outputHashLength;
 }
 
@@ -142,6 +136,23 @@ void Blake2b::Init(
 void Blake2b::Update(const std::vector<uint8_t> &data)
 {
     return Update(&data[0], data.size());
+}
+
+void Blake2b::incrementBytesCompressed(const uint64_t bytesCompressed)
+{
+    /* m_compressXorFlags[0..1] is a 128 bit number stored in little endian. */
+    /* Increase the bottom bits */
+    m_compressXorFlags[0] += bytesCompressed;
+
+    /* If it's less than the value we just added, we overflowed, and need to
+       add one to the top bits */
+    m_compressXorFlags[1] += (m_compressXorFlags[0] < bytesCompressed) ? 1 : 0;
+}
+
+/* Set all bytes, indicates last block */
+void Blake2b::setLastBlock()
+{
+    m_compressXorFlags[2] = std::numeric_limits<uint64_t>::max();
 }
 
 void Blake2b::Update(const uint8_t *data, size_t len)
@@ -157,7 +168,7 @@ void Blake2b::Update(const uint8_t *data, size_t len)
         /* Not final block */
         if (m_chunkSize == 128)
         {
-            compress(false);
+            compress();
             m_chunkSize = 0;
         }
 
@@ -183,7 +194,7 @@ void Blake2b::Update(const uint8_t *data, size_t len)
         m_chunkSize += size;
 
         /* Update processed byte count */
-        m_bytesCompressed += size;
+        incrementBytesCompressed(size);
 
         len -= size;
 
@@ -204,8 +215,11 @@ std::vector<uint8_t> Blake2b::Finalize()
     /* Pad final chunk with zeros */
     std::memset(ptr, 0, 128 - m_chunkSize);
 
+    /* Set the XOR data for last block */
+    setLastBlock();
+
     /* Process final chunk */
-    compress(true);
+    compress();
 
     /* Return the final hash as a byte array */
     std::vector<uint8_t> finalHash(m_outputHashLength);
@@ -215,7 +229,7 @@ std::vector<uint8_t> Blake2b::Finalize()
     return finalHash;
 }
 
-void Blake2b::compress(const bool finalChunk)
+void Blake2b::compress()
 {
     std::vector<uint64_t> v(16);
 
@@ -225,19 +239,11 @@ void Blake2b::compress(const bool finalChunk)
     /* v[8..15] = IV[0..7] */
     std::copy(IV.begin(), IV.end(), v.begin() + 8);
 
-    /* Normally, this would be
-        v[12] ^= LO(bytesCompressed)
-        v[13] ^= HI(bytesCompressed),
-      but we are not supporting messages > 2^64, so the high bits will always
-      be zero. Since XOR with 0 is a no-op, we can skip the second operation. */
-    v[12] ^= m_bytesCompressed;
-
-    /* If this is the last block, then invert all the bits in v[14] */
-    if (finalChunk)
-    {
-        v[14] ^= 0xFFFFFFFFFFFFFFFF;
-    }
-
+    v[12] ^= m_compressXorFlags[0];
+    v[13] ^= m_compressXorFlags[1];
+    v[14] ^= m_compressXorFlags[2];
+    v[15] ^= m_compressXorFlags[3];
+ 
     /* 12 rounds of mixing */
     for (int i = 0; i < 12; i++)
     {

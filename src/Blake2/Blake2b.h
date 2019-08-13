@@ -28,7 +28,11 @@ class Blake2b
         static std::vector<uint8_t> Hash(const std::string &message);
 
     private:
-        void compress(const bool finalChunk);
+        void compress();
+
+        void incrementBytesCompressed(const uint64_t bytesCompressed);
+
+        void setLastBlock();
 
         /* Working hash */
         std::vector<uint64_t> m_hash;
@@ -36,8 +40,9 @@ class Blake2b
         /* Chunk of data to process */
         std::vector<uint64_t> m_chunk;
 
-        /* Bytes we've processed so far */
-        size_t m_bytesCompressed = 0;
+        /* Our flags for the compress() function, corresponding to bytes
+           processed and final block flag */
+        std::vector<uint64_t> m_compressXorFlags = { 0, 0, 0, 0 };
 
         /* Size of chunk to process */
         uint8_t m_chunkSize = 0;
