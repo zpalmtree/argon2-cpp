@@ -1,6 +1,6 @@
 #include "cpu_features/include/cpu_features_cache_info.h"
 
-#if defined(CPU_FEATURES_ARCH_X86_64) && defined(CPU_FEATURES_COMPILED_X86_AVX2)
+#if defined(CPU_FEATURES_ARCH_X86_64)
 
 #warning "Using X86_64 Blake AVX2 Intrinsics"
 
