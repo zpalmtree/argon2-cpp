@@ -43,6 +43,9 @@ endif()
 
 include(CheckCXXCompilerFlag)
 
+# GOTTA GO FAST
+set(CMAKE_CXX_FLAGS_RELEASE "-O3")
+
 # Add custom modules
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/src/Intrinsics")
 
