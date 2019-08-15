@@ -2,7 +2,6 @@
 set(x86_intrinsics_source_files
     ArgonIntrinsics.cpp
     BlakeIntrinsics.cpp
-    Rotations.cpp
 )
 
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
