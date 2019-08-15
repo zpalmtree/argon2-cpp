@@ -7,9 +7,9 @@
 #include "Argon2/Argon2.h"
 
 void Argon2::processBlockGeneric(
-    const Block &out,
-    Block &in1,
-    Block &in2,
+    Block &out,
+    const Block &in1,
+    const Block &in2,
     const bool doXor)
 {
     processBlockGenericCrossPlatform(out, in1, in2, doXor);
