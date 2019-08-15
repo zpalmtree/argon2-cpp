@@ -1,6 +1,8 @@
 # Add the files we want to link against
 set(x86_intrinsics_source_files
+    ArgonIntrinsics.cpp
     BlakeIntrinsics.cpp
+    Rotations.cpp
 )
 
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
@@ -14,6 +16,6 @@ else()
 endif()
 
 # Add the library to be linked against, with the previously specified source files
-add_library(X86Intrinsics ${x86_intrinsics_source_files})
+add_library(Intrinsics ${x86_intrinsics_source_files})
 
-target_link_libraries(X86Intrinsics cpu_features)
+target_link_libraries(Intrinsics cpu_features)

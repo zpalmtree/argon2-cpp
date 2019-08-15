@@ -10,8 +10,3 @@ void Blake2b::compress()
 {
     compressCrossPlatform();
 }
-
-/* Just to avoid possible linking errors */
-void Blake2b::compressAVX2()
-{
-}

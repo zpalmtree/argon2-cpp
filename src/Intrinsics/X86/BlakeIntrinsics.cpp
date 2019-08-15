@@ -6,27 +6,7 @@
 #include "Intrinsics/X86/BlakeIntrinsics.h"
 ///////////////////////////////////////////
 
-__m256i rotr32(__m256i x) {
-    return _mm256_shuffle_epi32(x, _MM_SHUFFLE(2, 3, 0, 1));
-}
-
-__m256i rotr24(__m256i x) {
-    return _mm256_shuffle_epi8(x, _mm256_setr_epi8(
-            3, 4, 5, 6, 7, 0, 1, 2, 11, 12, 13, 14, 15, 8, 9, 10,
-            3, 4, 5, 6, 7, 0, 1, 2, 11, 12, 13, 14, 15, 8, 9, 10
-    ));
-}
-
-__m256i rotr16(__m256i x) {
-    return _mm256_shuffle_epi8(x, _mm256_setr_epi8(
-            2, 3, 4, 5, 6, 7, 0, 1, 10, 11, 12, 13, 14, 15, 8, 9,
-            2, 3, 4, 5, 6, 7, 0, 1, 10, 11, 12, 13, 14, 15, 8, 9
-    ));
-}
-
-__m256i rotr63(__m256i x) {
-    return _mm256_xor_si256(_mm256_srli_epi64(x, 63), _mm256_add_epi64(x, x));
-}
+#include "Intrinsics/X86/Rotations.h"
 
 /*
  * a =  v0,  v1,  v2,  v3
@@ -72,18 +52,12 @@ void undiagonalize(__m256i& b, __m256i& c, __m256i& d) {
 
 void Blake2b::compress()
 {
-    if (hasAVX2)
-    {
-        compressAVX2();
-    }
-    else
+    if (!hasAVX2)
     {
         compressCrossPlatform();
+        return;
     }
-}
 
-void Blake2b::compressAVX2()
-{
     static const __m128i vindex[12][4] = {
         { _mm_set_epi32( 6,  4,  2,  0), _mm_set_epi32( 7,  5,  3,  1), _mm_set_epi32(14, 12, 10,  8), _mm_set_epi32(15, 13, 11,  9) },
         { _mm_set_epi32(13,  9,  4, 14), _mm_set_epi32( 6, 15,  8, 10), _mm_set_epi32( 5, 11,  0,  1), _mm_set_epi32( 3,  7,  2, 12) },

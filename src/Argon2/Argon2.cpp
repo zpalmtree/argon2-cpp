@@ -11,13 +11,9 @@
 #include "Blake2/Blake2b.h"
 
 #include <cmath>
-
 #include <cstring>
-
 #include <stdexcept>
-
 #include <sstream>
-
 #include <tuple>
 
 Argon2::Argon2(
@@ -421,60 +417,64 @@ std::vector<uint8_t> Argon2::extractKey()
     return key;
 }
 
-void Argon2::processBlockGeneric(
-    Block &out,
-    Block &in1,
-    Block &in2,
+void Argon2::processBlockGenericCrossPlatform(
+    Block &nextBlock,
+    const Block &refBlock,
+    const Block &prevBlock,
     const bool doXor)
 {
-    Block t;
+    Block state;
 
+    /* Copy block */
+    std::memcpy(state.data(), refBlock.data(), Constants::BLOCK_SIZE_BYTES);
+
+    /* Xor block */
     for (int i = 0; i < Constants::BLOCK_SIZE; i++)
     {
-        t[i] = in1[i] ^ in2[i];
+        state[i] ^= prevBlock[i];
     }
 
     for (int i = 0; i < Constants::BLOCK_SIZE; i += 16)
     {
         blamkaGeneric(
-            t[i + 0],
-            t[i + 1],
-            t[i + 2],
-            t[i + 3],
-            t[i + 4],
-            t[i + 5],
-            t[i + 6],
-            t[i + 7],
-            t[i + 8],
-            t[i + 9],
-            t[i + 10],
-            t[i + 11],
-            t[i + 12],
-            t[i + 13],
-            t[i + 14],
-            t[i + 15]
+            state[i + 0],
+            state[i + 1],
+            state[i + 2],
+            state[i + 3],
+            state[i + 4],
+            state[i + 5],
+            state[i + 6],
+            state[i + 7],
+            state[i + 8],
+            state[i + 9],
+            state[i + 10],
+            state[i + 11],
+            state[i + 12],
+            state[i + 13],
+            state[i + 14],
+            state[i + 15]
         );
     }
 
     for (int i = 0; i < Constants::BLOCK_SIZE / 8; i += 2)
     {
         blamkaGeneric(
-            t[0 + i + 0],
-            t[0 + i + 1],
-            t[16 + i + 0],
-            t[16 + i + 1],
-            t[32 + i + 0],
-            t[32 + i + 1],
-            t[48 + i + 0],
-            t[48 + i + 1],
-            t[64 + i + 0],
-            t[64 + i + 1],
-            t[80 + i + 0],
-            t[80 + i + 1],
-            t[96 + i + 0],
-            t[96 + i + 1],
-            t[112 + i + 0],
-            t[112 + i + 1]
+            state[0 + i + 0],
+            state[0 + i + 1],
+            state[16 + i + 0],
+            state[16 + i + 1],
+            state[32 + i + 0],
+            state[32 + i + 1],
+            state[48 + i + 0],
+            state[48 + i + 1],
+            state[64 + i + 0],
+            state[64 + i + 1],
+            state[80 + i + 0],
+            state[80 + i + 1],
+            state[96 + i + 0],
+            state[96 + i + 1],
+            state[112 + i + 0],
+            state[112 + i + 1]
         );
     }
 
@@ -482,14 +482,14 @@ void Argon2::processBlockGeneric(
     {
         for (int i = 0; i < Constants::BLOCK_SIZE; i++)
         {
-            out[i] ^= in1[i] ^ in2[i] ^ t[i];
+            nextBlock[i] ^= refBlock[i] ^ prevBlock[i] ^ state[i];
         }
     }
     else
     {
         for (int i = 0; i < Constants::BLOCK_SIZE; i++)
         {
-            out[i] = in1[i] ^ in2[i] ^ t[i];
+            nextBlock[i] = refBlock[i] ^ prevBlock[i] ^ state[i];
         }
     }
 }
@@ -649,16 +649,16 @@ void Argon2::blamkaGeneric(
 
 void Argon2::processBlock(
     Block &out,
-    Block &in1,
-    Block &in2)
+    const Block &in1,
+    const Block &in2)
 {
     processBlockGeneric(out, in1, in2, false);
 }
 
 void Argon2::processBlockXOR(
     Block &out,
-    Block &in1,
-    Block &in2)
+    const Block &in1,
+    const Block &in2)
 {
     processBlockGeneric(out, in1, in2, true);
 }

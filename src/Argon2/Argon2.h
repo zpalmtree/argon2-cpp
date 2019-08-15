@@ -102,8 +102,14 @@ class Argon2
 
         void processBlockGeneric(
             Block &out,
-            Block &in1,
-            Block &in2,
+            const Block &in1,
+            const Block &in2,
+            const bool doXor);
+
+        void processBlockGenericCrossPlatform(
+            Block &out,
+            const Block &in1,
+            const Block &in2,
             const bool doXor);
 
         void blamkaGeneric(
@@ -126,13 +132,13 @@ class Argon2
 
         void processBlock(
             Block &out,
-            Block &in1,
-            Block &in2);
+            const Block &in1,
+            const Block &in2);
 
         void processBlockXOR(
             Block &out,
-            Block &in1,
-            Block &in2);
+            const Block &in1,
+            const Block &in2);
 
         uint32_t indexAlpha(
             const uint64_t random,
