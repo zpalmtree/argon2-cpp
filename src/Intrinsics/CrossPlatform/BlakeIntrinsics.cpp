@@ -2,14 +2,16 @@
 //
 // Please see the included LICENSE file for more information.
 
-#pragma once
+#include "Blake2/Blake2b.h"
 
-inline void Blake2b::compress()
+#include <iostream>
+
+void Blake2b::compress()
 {
     compressCrossPlatform();
 }
 
 /* Just to avoid possible linking errors */
-inline void Blake2b::compressAVX2()
+void Blake2b::compressAVX2()
 {
 }

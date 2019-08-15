@@ -9,8 +9,6 @@
 #include <cstring>
 #include <stdexcept>
 
-#include "Intrinsics/Intrinsics.h"
-
 void mix(
     uint64_t &vA,
     uint64_t &vB,

@@ -43,11 +43,8 @@ endif()
 
 include(CheckCXXCompilerFlag)
 
-# Need to set -march=native to allow AVX2 code to compile
-CHECK_CXX_COMPILER_FLAG("-march=native" COMPILER_SUPPORTS_MARCH_NATIVE)
-if(COMPILER_SUPPORTS_MARCH_NATIVE)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native")
-endif()
+# Add custom modules
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/src/Intrinsics")
 
 option(BUILD_TESTS "Build the test executable?" ON)
 
