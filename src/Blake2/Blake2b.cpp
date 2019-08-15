@@ -7,6 +7,7 @@
 ////////////////////
 
 #include <cstring>
+#include <limits>
 #include <stdexcept>
 
 void mix(
