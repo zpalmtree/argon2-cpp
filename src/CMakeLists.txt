@@ -4,8 +4,13 @@ add_subdirectory(Argon2)
 # Add the Blake2 directory to add that library
 add_subdirectory(Blake2)
 
-# Add the external cpu_features library
-add_subdirectory(cpu_features)
+# Use the TargetArch module to figure out what arch we're compiling for
+include(TargetArch)
+target_architecture(ARCH)
+
+if("${ARCH}" STREQUAL "x86_64")
+    add_subdirectory(cpu_features)
+endif()
 
 add_subdirectory(Intrinsics)
 
