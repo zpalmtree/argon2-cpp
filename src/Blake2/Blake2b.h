@@ -9,10 +9,12 @@
 #include <string>
 #include <vector>
 
+#include "Argon2/Argon2.h"
+
 class Blake2b
 {
     public:
-        Blake2b();
+        Blake2b(const Constants::OptimizationMethod optimizationMethod = Constants::AUTO);
 
         void Init(
             const std::vector<uint8_t> key = {},
@@ -80,4 +82,7 @@ class Blake2b
             { 6,  15, 14, 9,  11, 3,  0,  8,  12, 2,  13, 7,  1,  4,  10, 5  },
             { 10, 2,  8,  4,  7,  6,  1,  5,  15, 11, 9,  14, 3,  12, 13, 0  }
         }};
+
+        /* What method of optimization to use */
+        const Constants::OptimizationMethod m_optimizationMethod;
 };

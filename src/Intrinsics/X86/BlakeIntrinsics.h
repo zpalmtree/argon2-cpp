@@ -34,7 +34,11 @@
 #include "Intrinsics/X86/IncludeIntrinsics.h"
 
 static const cpu_features::X86Features features = cpu_features::GetX86Info().features;
+
+static const bool hasAVX512 = features.avx512f;
 static const bool hasAVX2 = features.avx2;
+static const bool hasSSE3 = features.sse3;
+static const bool hasSSE2 = features.sse2;
 
 __m256i rotr32(__m256i x);
 __m256i rotr24(__m256i x);
@@ -48,3 +52,23 @@ void g2AVX2(uint32_t r, __m256i& a, __m256i& b, __m256i& c, __m256i& d, uint64_t
 void diagonalize(__m256i& b, __m256i& c, __m256i& d);
 
 void undiagonalize(__m256i& b, __m256i& c, __m256i& d);
+
+void compressAVX512(
+    std::vector<uint64_t> &hash,
+    std::vector<uint64_t> &chunk,
+    std::vector<uint64_t> &compressXorFlags);
+
+void compressAVX2(
+    std::vector<uint64_t> &hash,
+    std::vector<uint64_t> &chunk,
+    std::vector<uint64_t> &compressXorFlags);
+
+void compressSSE3(
+    std::vector<uint64_t> &hash,
+    std::vector<uint64_t> &chunk,
+    std::vector<uint64_t> &compressXorFlags);
+
+void compressSSE2(
+    std::vector<uint64_t> &hash,
+    std::vector<uint64_t> &chunk,
+    std::vector<uint64_t> &compressXorFlags);

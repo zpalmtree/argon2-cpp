@@ -73,14 +73,19 @@ void undiagonalize(__m256i& b, __m256i& c, __m256i& d) {
     d = _mm256_permute4x64_epi64(d, _MM_SHUFFLE(0, 3, 2, 1));
 }
 
-void Blake2b::compress()
+void compressAVX512(
+    std::vector<uint64_t> &hash,
+    std::vector<uint64_t> &chunk,
+    std::vector<uint64_t> &compressXorFlags)
 {
-    if (!hasAVX2)
-    {
-        compressCrossPlatform();
-        return;
-    }
+    throw std::logic_error("Function not yet implemented!");
+}
 
+void compressAVX2(
+    std::vector<uint64_t> &hash,
+    std::vector<uint64_t> &chunk,
+    std::vector<uint64_t> &compressXorFlags)
+{
     static const __m128i vindex[12][4] = {
         { _mm_set_epi32( 6,  4,  2,  0), _mm_set_epi32( 7,  5,  3,  1), _mm_set_epi32(14, 12, 10,  8), _mm_set_epi32(15, 13, 11,  9) },
         { _mm_set_epi32(13,  9,  4, 14), _mm_set_epi32( 6, 15,  8, 10), _mm_set_epi32( 5, 11,  0,  1), _mm_set_epi32( 3,  7,  2, 12) },
@@ -101,25 +106,77 @@ void Blake2b::compress()
         _mm256_set_epi64x(0x5be0cd19137e2179ULL, 0x1f83d9abfb41bd6bULL, 0x9b05688c2b3e6c1fULL, 0x510e527fade682d1ULL)
     };
 
-    __m256i a = _mm256_loadu_si256((__m256i*)&m_hash[0]);
-    __m256i b = _mm256_loadu_si256((__m256i*)&m_hash[4]);
+    __m256i a = _mm256_loadu_si256((__m256i*)&hash[0]);
+    __m256i b = _mm256_loadu_si256((__m256i*)&hash[4]);
     __m256i c = iv[0];
-    __m256i d = _mm256_xor_si256(iv[1], _mm256_loadu_si256((__m256i*)&m_compressXorFlags[0]));
+    __m256i d = _mm256_xor_si256(iv[1], _mm256_loadu_si256((__m256i*)&compressXorFlags[0]));
 
     for(uint32_t i = 0; i < 12; i++)
     {
-        g1AVX2(i, a, b, c, d, m_chunk.data(), vindex);
+        g1AVX2(i, a, b, c, d, chunk.data(), vindex);
         diagonalize(b, c, d);
-        g2AVX2(i, a, b, c, d, m_chunk.data(), vindex);
+        g2AVX2(i, a, b, c, d, chunk.data(), vindex);
         undiagonalize(b, c, d);
     }
 
-    _mm256_storeu_si256((__m256i*)&m_hash[0], _mm256_xor_si256(
-            _mm256_loadu_si256((__m256i*)&m_hash[0]),
+    _mm256_storeu_si256((__m256i*)&hash[0], _mm256_xor_si256(
+            _mm256_loadu_si256((__m256i*)&hash[0]),
             _mm256_xor_si256(a, c)
     ));
-    _mm256_storeu_si256(((__m256i*)&m_hash[0]) + 1, _mm256_xor_si256(
-            _mm256_loadu_si256(((__m256i*)&m_hash[0]) + 1),
+    _mm256_storeu_si256(((__m256i*)&hash[0]) + 1, _mm256_xor_si256(
+            _mm256_loadu_si256(((__m256i*)&hash[0]) + 1),
             _mm256_xor_si256(b, d)
     ));
+}
+
+void compressSSE3(
+    std::vector<uint64_t> &hash,
+    std::vector<uint64_t> &chunk,
+    std::vector<uint64_t> &compressXorFlags)
+{
+    throw std::logic_error("Function not yet implemented!");
+}
+
+void compressSSE2(
+    std::vector<uint64_t> &hash,
+    std::vector<uint64_t> &chunk,
+    std::vector<uint64_t> &compressXorFlags)
+{
+    throw std::logic_error("Function not yet implemented!");
+}
+
+void Blake2b::compress()
+{
+    const bool tryAVX512
+        = m_optimizationMethod == Constants::AVX512 || m_optimizationMethod == Constants::AUTO;
+
+    const bool tryAVX2
+        = m_optimizationMethod == Constants::AVX2 || m_optimizationMethod == Constants::AUTO;
+
+    const bool trySSE3
+        = m_optimizationMethod == Constants::SSE3 || m_optimizationMethod == Constants::AUTO;
+
+    const bool trySSE2
+        = m_optimizationMethod == Constants::SSE2 || m_optimizationMethod == Constants::AUTO;
+
+    if (tryAVX512 && hasAVX512)
+    {
+        compressAVX512(m_hash, m_chunk, m_compressXorFlags);
+    }
+    else if (tryAVX2 && hasAVX2)
+    {
+        compressAVX2(m_hash, m_chunk, m_compressXorFlags);
+    }
+    else if (trySSE3 && hasSSE3)
+    {
+        compressSSE3(m_hash, m_chunk, m_compressXorFlags);
+    }
+    else if (trySSE2 && hasSSE2)
+    {
+        compressSSE2(m_hash, m_chunk, m_compressXorFlags);
+    }
+    else
+    {
+        compressCrossPlatform();
+    }
 }

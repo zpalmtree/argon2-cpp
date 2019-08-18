@@ -106,11 +106,12 @@ std::vector<uint8_t> Blake2b::Hash(const std::string &message)
     return blake.Finalize();
 }
 
-Blake2b::Blake2b():
+Blake2b::Blake2b(const Constants::OptimizationMethod optimizationMethod):
     m_hash(8),
     m_chunk(16),
     m_chunkSize(0),
-    m_outputHashLength(64)
+    m_outputHashLength(64),
+    m_optimizationMethod(optimizationMethod)
 {
 }
 

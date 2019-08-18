@@ -195,7 +195,7 @@ std::vector<uint8_t> Argon2::initHash(
 
     /* Can either do this step by appending everything to one vector then
        performing one hash, or using a streaming approach with .Update() */
-    Blake2b blake;
+    Blake2b blake(m_optimizationMethod);
 
     /* STEP 2: Initialize first hash */
     blake.Init();
@@ -368,7 +368,7 @@ void Argon2::blake2bHash(
         reinterpret_cast<const uint8_t *>(&outputLength + 1)
     );
 
-    Blake2b blake;
+    Blake2b blake(m_optimizationMethod);
 
     if (outputLength < Constants::HASH_SIZE)
     {
