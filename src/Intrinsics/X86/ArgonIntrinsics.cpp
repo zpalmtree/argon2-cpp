@@ -170,7 +170,7 @@ void processBlockAVX512(
     const Block &prevBlock,
     const bool doXor)
 {
-    std::cout << "AVX 512" << std::endl;
+    throw std::runtime_error("Function not yet implemented!");
 }
 
 void processBlockAVX2(
