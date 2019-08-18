@@ -164,18 +164,21 @@ void undiagonalizeAVX2v2(__m256i& b0, __m256i& b1, __m256i& c0, __m256i& c1, __m
     d1 = _mm256_permute4x64_epi64(tmp2, _MM_SHUFFLE(2,3,0,1));
 }
 
-void Argon2::processBlockGeneric(
+void processBlockAVX512(
     Block &nextBlock,
     const Block &refBlock,
     const Block &prevBlock,
     const bool doXor)
 {
-    if (!hasAVX2)
-    {
-        processBlockGenericCrossPlatform(nextBlock, refBlock, prevBlock, doXor);
-        return;
-    }
+    std::cout << "AVX 512" << std::endl;
+}
 
+void processBlockAVX2(
+    Block &nextBlock,
+    const Block &refBlock,
+    const Block &prevBlock,
+    const bool doXor)
+{
     /* 32 * (256 / 8) = Constants::BLOCK_SIZE_BYTES */
     __m256i state[32];
     __m256i prevBlockIntrinsic[32];
@@ -290,5 +293,63 @@ void Argon2::processBlockGeneric(
 
             _mm256_storeu_si256(blockToWrite, result);
         }
+    }
+}
+
+void processBlockSSE3(
+    Block &nextBlock,
+    const Block &refBlock,
+    const Block &prevBlock,
+    const bool doXor)
+{
+    throw std::logic_error("Function not yet implemented!");
+}
+
+void processBlockSSE2(
+    Block &nextBlock,
+    const Block &refBlock,
+    const Block &prevBlock,
+    const bool doXor)
+{
+    throw std::logic_error("Function not yet implemented!");
+}
+
+void Argon2::processBlockGeneric(
+    Block &nextBlock,
+    const Block &refBlock,
+    const Block &prevBlock,
+    const bool doXor)
+{
+    const bool tryAVX512
+        = m_optimizationMethod == Constants::AVX512 || m_optimizationMethod == Constants::AUTO;
+
+    const bool tryAVX2
+        = m_optimizationMethod == Constants::AVX2 || m_optimizationMethod == Constants::AUTO;
+
+    const bool trySSE3
+        = m_optimizationMethod == Constants::SSE3 || m_optimizationMethod == Constants::AUTO;
+
+    const bool trySSE2
+        = m_optimizationMethod == Constants::SSE2 || m_optimizationMethod == Constants::AUTO;
+
+    if (tryAVX512 && hasAVX512)
+    {
+        processBlockAVX512(nextBlock, refBlock, prevBlock, doXor);
+    }
+    else if (tryAVX2 && hasAVX2)
+    {
+        processBlockAVX2(nextBlock, refBlock, prevBlock, doXor);
+    }
+    else if (trySSE3 && hasSSE3)
+    {
+        processBlockSSE3(nextBlock, refBlock, prevBlock, doXor);
+    }
+    else if (trySSE2 && hasSSE2)
+    {
+        processBlockSSE2(nextBlock, refBlock, prevBlock, doXor);
+    }
+    else
+    {
+        processBlockGenericCrossPlatform(nextBlock, refBlock, prevBlock, doXor);
     }
 }

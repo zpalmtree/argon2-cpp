@@ -51,14 +51,16 @@ Argon2::Argon2(
     const uint32_t time,
     const uint32_t memory,
     const uint32_t threads,
-    const uint32_t keyLen):
+    const uint32_t keyLen,
+    const Constants::OptimizationMethod optimizationMethod):
     m_mode(mode),
     m_secret(secret),
     m_data(data),
     m_time(time),
     m_memory(memory),
     m_threads(threads),
-    m_keyLen(keyLen)
+    m_keyLen(keyLen),
+    m_optimizationMethod(optimizationMethod)
 {
     uint32_t scratchpadSize 
         = memory / (Constants::SYNC_POINTS * threads) * (Constants::SYNC_POINTS * threads);

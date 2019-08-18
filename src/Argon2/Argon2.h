@@ -26,7 +26,8 @@ class Argon2
             const uint32_t time,
             const uint32_t memory,
             const uint32_t threads,
-            const uint32_t keyLen);
+            const uint32_t keyLen,
+            const Constants::OptimizationMethod optimizationMethod = Constants::AUTO);
 
         /* PUBLIC STATIC METHODS */
 
@@ -190,4 +191,7 @@ class Argon2
 
         /* Number of segments to use */
         uint32_t m_segments;
+
+        /* Preferred optimization method to use */
+        const Constants::OptimizationMethod m_optimizationMethod;
 };

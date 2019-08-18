@@ -19,6 +19,79 @@ namespace Constants
         ARGON2ID = 2,
     };
 
+    enum OptimizationMethod
+    {
+        AVX512 = 0,
+        AVX2 = 1,
+        SSE3 = 2,
+        SSE2 = 3,
+        NONE = 4,
+        AUTO = 5,
+    };
+
+    inline std::string optimizationMethodToString(const OptimizationMethod method)
+    {
+        switch (method)
+        {
+            case AVX512:
+            {
+                return "AVX-512";
+            }
+            case AVX2:
+            {
+                return "AVX-2";
+            }
+            case SSE3:
+            {
+                return "SSE3";
+            }
+            case SSE2:
+            {
+                return "SSE2";
+            }
+            case NONE:
+            {
+                return "None";
+            }
+            case AUTO:
+            {
+                return "Auto";
+            }
+        }
+
+        throw std::invalid_argument("Unknown optimization method!");
+    }
+
+    inline OptimizationMethod optimizationMethodFromString(const std::string &method)
+    {
+        if (method == "AVX-512")
+        {
+            return AVX512;
+        }
+        else if (method == "AVX-2")
+        {
+            return AVX2;
+        }
+        else if (method == "SSE3")
+        {
+            return SSE3;
+        }
+        else if (method == "SSE2")
+        {
+            return SSE2;
+        }
+        else if (method == "None")
+        {
+            return NONE;
+        }
+        else if (method == "Auto")
+        {
+            return AUTO;
+        }
+
+        throw std::invalid_argument("Optimization method " + method + " is unknown.");
+    }
+
     /* Parallelism must be < 2^24 - 1 */
     constexpr uint32_t MAX_PARALLELISM = (1 << 24) - 1;
 
