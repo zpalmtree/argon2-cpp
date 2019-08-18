@@ -22,12 +22,13 @@ namespace Constants
 
     enum OptimizationMethod
     {
-        AVX512 = 0,
-        AVX2 = 1,
-        SSE3 = 2,
-        SSE2 = 3,
-        NONE = 4,
-        AUTO = 5,
+        AVX512,
+        AVX2,
+        SSE41,
+        SSSE3,
+        SSE2,
+        NONE,
+        AUTO,
     };
 
     inline std::string optimizationMethodToString(const OptimizationMethod method)
@@ -42,9 +43,13 @@ namespace Constants
             {
                 return "AVX-2";
             }
-            case SSE3:
+            case SSE41:
             {
-                return "SSE3";
+                return "SSE4.1";
+            }
+            case SSSE3:
+            {
+                return "SSSE3";
             }
             case SSE2:
             {
@@ -73,9 +78,13 @@ namespace Constants
         {
             return AVX2;
         }
-        else if (method == "SSE3")
+        else if (method == "SSE4.1")
         {
-            return SSE3;
+            return SSE41;
+        }
+        else if (method == "SSSE3")
+        {
+            return SSSE3;
         }
         else if (method == "SSE2")
         {

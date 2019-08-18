@@ -296,7 +296,16 @@ void processBlockAVX2(
     }
 }
 
-void processBlockSSE3(
+void processBlockSSE41(
+    Block &nextBlock,
+    const Block &refBlock,
+    const Block &prevblock,
+    const bool doXor)
+{
+    throw std::logic_error("Function not yet implemented!");
+}
+
+void processBlockSSSE3(
     Block &nextBlock,
     const Block &refBlock,
     const Block &prevBlock,
@@ -326,8 +335,11 @@ void Argon2::processBlockGeneric(
     const bool tryAVX2
         = m_optimizationMethod == Constants::AVX2 || m_optimizationMethod == Constants::AUTO;
 
-    const bool trySSE3
-        = m_optimizationMethod == Constants::SSE3 || m_optimizationMethod == Constants::AUTO;
+    const bool trySSE41
+        = m_optimizationMethod == Constants::SSE41 || m_optimizationMethod == Constants::AUTO;
+
+    const bool trySSSE3
+        = m_optimizationMethod == Constants::SSSE3 || m_optimizationMethod == Constants::AUTO;
 
     const bool trySSE2
         = m_optimizationMethod == Constants::SSE2 || m_optimizationMethod == Constants::AUTO;
@@ -340,9 +352,13 @@ void Argon2::processBlockGeneric(
     {
         processBlockAVX2(nextBlock, refBlock, prevBlock, doXor);
     }
-    else if (trySSE3 && hasSSE3)
+    else if (trySSE41 && hasSSE41)
     {
-        processBlockSSE3(nextBlock, refBlock, prevBlock, doXor);
+        processBlockSSE41(nextBlock, refBlock, prevBlock, doXor);
+    }
+    else if (trySSSE3 && hasSSSE3)
+    {
+        processBlockSSSE3(nextBlock, refBlock, prevBlock, doXor);
     }
     else if (trySSE2 && hasSSE2)
     {

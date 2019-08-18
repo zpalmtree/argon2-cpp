@@ -129,7 +129,15 @@ void compressAVX2(
     ));
 }
 
-void compressSSE3(
+void compressSSE41(
+    std::vector<uint64_t> &hash,
+    std::vector<uint64_t> &chunk,
+    std::vector<uint64_t> &compressXorFlags)
+{
+    throw std::logic_error("Function not yet implemented!");
+}
+
+void compressSSSE3(
     std::vector<uint64_t> &hash,
     std::vector<uint64_t> &chunk,
     std::vector<uint64_t> &compressXorFlags)
@@ -153,8 +161,11 @@ void Blake2b::compress()
     const bool tryAVX2
         = m_optimizationMethod == Constants::AVX2 || m_optimizationMethod == Constants::AUTO;
 
-    const bool trySSE3
-        = m_optimizationMethod == Constants::SSE3 || m_optimizationMethod == Constants::AUTO;
+    const bool trySSE41
+        = m_optimizationMethod == Constants::SSE41 || m_optimizationMethod == Constants::AUTO;
+
+    const bool trySSSE3
+        = m_optimizationMethod == Constants::SSSE3 || m_optimizationMethod == Constants::AUTO;
 
     const bool trySSE2
         = m_optimizationMethod == Constants::SSE2 || m_optimizationMethod == Constants::AUTO;
@@ -167,9 +178,13 @@ void Blake2b::compress()
     {
         compressAVX2(m_hash, m_chunk, m_compressXorFlags);
     }
-    else if (trySSE3 && hasSSE3)
+    else if (trySSE41 && hasSSE41)
     {
-        compressSSE3(m_hash, m_chunk, m_compressXorFlags);
+        compressSSE41(m_hash, m_chunk, m_compressXorFlags);
+    }
+    else if (trySSSE3 && hasSSSE3)
+    {
+        compressSSSE3(m_hash, m_chunk, m_compressXorFlags);
     }
     else if (trySSE2 && hasSSE2)
     {

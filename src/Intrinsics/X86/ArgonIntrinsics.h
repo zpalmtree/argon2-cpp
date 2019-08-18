@@ -14,7 +14,8 @@ static const cpu_features::X86Features features = cpu_features::GetX86Info().fea
 
 static const bool hasAVX512 = features.avx512f;
 static const bool hasAVX2 = features.avx2;
-static const bool hasSSE3 = features.sse3;
+static const bool hasSSE41 = features.sse4_1;
+static const bool hasSSSE3 = features.ssse3;
 static const bool hasSSE2 = features.sse2;
 
 void blamkaG1AVX2(
@@ -45,7 +46,13 @@ void processBlockAVX2(
     const Block &prevBlock,
     const bool doXor);
 
-void processBlockSSE3(
+void processBlockSSE41(
+    Block &nextBlock,
+    const Block &refBlock,
+    const Block &prevblock,
+    const bool doXor);
+
+void processBlockSSSE3(
     Block &nextBlock,
     const Block &refBlock,
     const Block &prevBlock,
