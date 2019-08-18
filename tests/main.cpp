@@ -146,25 +146,6 @@ int main()
         return chukwa.Hash(chukwaInput, chukwaSalt);
     }));
 
-    const int iterations = 5000;
-
-    std::cout << "Running benchmark, " << iterations << " iterations." << std::endl;
-
-    const auto begin = std::chrono::high_resolution_clock::now();
-
-    for (int i = 0; i < iterations; i++)
-    {
-        /* So the hashes are always different */
-        std::vector<uint8_t> input = chukwaInput;
-        input.push_back(i);
-
-        chukwa.Hash(input, chukwaSalt);
-    }
-
-    const auto elapsedTime = std::chrono::high_resolution_clock::now() - begin;
-
-    std::cout << "Benchmark results: " << (iterations / std::chrono::duration_cast<std::chrono::seconds>(elapsedTime).count()) << " H/s\n";
-
     const bool success = std::all_of(results.begin(), results.end(), [](const bool x) { return x; });
 
     if (success)
