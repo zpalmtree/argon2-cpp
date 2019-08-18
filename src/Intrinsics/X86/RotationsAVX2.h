@@ -27,31 +27,27 @@
 
 #pragma once
 
-#include <cstdint>
+namespace RotationsAVX2
+{
+    inline __m256i rotr32(__m256i x) {
+        return _mm256_shuffle_epi32(x, _MM_SHUFFLE(2, 3, 0, 1));
+    }
 
-#include "Blake2/Blake2b.h"
-#include "cpu_features/include/cpuinfo_x86.h"
-#include "Intrinsics/X86/IncludeIntrinsics.h"
+    inline __m256i rotr24(__m256i x) {
+        return _mm256_shuffle_epi8(x, _mm256_setr_epi8(
+            3, 4, 5, 6, 7, 0, 1, 2, 11, 12, 13, 14, 15, 8, 9, 10,
+            3, 4, 5, 6, 7, 0, 1, 2, 11, 12, 13, 14, 15, 8, 9, 10
+        ));
+    }
 
-static const cpu_features::X86Features features = cpu_features::GetX86Info().features;
+    inline __m256i rotr16(__m256i x) {
+        return _mm256_shuffle_epi8(x, _mm256_setr_epi8(
+            2, 3, 4, 5, 6, 7, 0, 1, 10, 11, 12, 13, 14, 15, 8, 9,
+            2, 3, 4, 5, 6, 7, 0, 1, 10, 11, 12, 13, 14, 15, 8, 9
+        ));
+    }
 
-static const bool hasAVX512 = features.avx512f;
-static const bool hasAVX2 = features.avx2;
-static const bool hasSSE41 = features.sse4_1;
-static const bool hasSSSE3 = features.ssse3;
-static const bool hasSSE2 = features.sse2;
-
-void compressAVX512(
-    std::vector<uint64_t> &hash,
-    std::vector<uint64_t> &chunk,
-    std::vector<uint64_t> &compressXorFlags);
-
-void compressSSE41(
-    std::vector<uint64_t> &hash,
-    std::vector<uint64_t> &chunk,
-    std::vector<uint64_t> &compressXorFlags);
-
-void compressSSE2(
-    std::vector<uint64_t> &hash,
-    std::vector<uint64_t> &chunk,
-    std::vector<uint64_t> &compressXorFlags);
+    inline __m256i rotr63(__m256i x) {
+        return _mm256_xor_si256(_mm256_srli_epi64(x, 63), _mm256_add_epi64(x, x));
+    }
+}

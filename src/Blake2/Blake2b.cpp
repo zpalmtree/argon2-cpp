@@ -44,7 +44,7 @@ void Blake2b::compressCrossPlatform()
     for (int i = 0; i < 12; i++)
     {
         /* Get the sigma constant for the current round */
-        const auto &sigma = SIGMA[i % 10];
+        const auto &sigma = SIGMA[i];
 
         /* Column round */
         mix(v[0], v[4], v[8],  v[12], m_chunk[sigma[0]],  m_chunk[sigma[1]]);

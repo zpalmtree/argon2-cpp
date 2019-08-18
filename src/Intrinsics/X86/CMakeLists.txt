@@ -2,6 +2,10 @@
 set(x86_intrinsics_source_files
     ArgonIntrinsics.cpp
     BlakeIntrinsics.cpp
+    CompressAVX2.cpp
+    CompressSSSE3.cpp
+    ProcessBlockAVX2.cpp
+    ProcessBlockSSSE3.cpp
 )
 
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang" OR CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")

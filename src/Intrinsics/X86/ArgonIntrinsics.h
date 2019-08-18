@@ -18,29 +18,7 @@ static const bool hasSSE41 = features.sse4_1;
 static const bool hasSSSE3 = features.ssse3;
 static const bool hasSSE2 = features.sse2;
 
-void blamkaG1AVX2(
-    __m256i& a0, __m256i& a1, __m256i& b0, __m256i& b1,
-    __m256i& c0, __m256i& c1, __m256i& d0, __m256i& d1);
-
-void blamkaG2AVX2(
-    __m256i& a0, __m256i& a1, __m256i& b0, __m256i& b1,
-    __m256i& c0, __m256i& c1, __m256i& d0, __m256i& d1);
-
-void diagonalizeAVX2v1(__m256i& b0, __m256i& c0, __m256i& d0, __m256i& b1, __m256i& c1, __m256i& d1);
-
-void diagonalizeAVX2v2(__m256i& b0, __m256i& b1, __m256i& c0, __m256i& c1, __m256i& d0, __m256i& d1);
-
-void undiagonalizeAVX2v1(__m256i& b0, __m256i& c0, __m256i& d0, __m256i& b1, __m256i& c1, __m256i& d1);
-
-void undiagonalizeAVX2v2(__m256i& b0, __m256i& b1, __m256i& c0, __m256i& c1, __m256i& d0, __m256i& d1);
-
 void processBlockAVX512(
-    Block &nextBlock,
-    const Block &refBlock,
-    const Block &prevBlock,
-    const bool doXor);
-
-void processBlockAVX2(
     Block &nextBlock,
     const Block &refBlock,
     const Block &prevBlock,
@@ -50,12 +28,6 @@ void processBlockSSE41(
     Block &nextBlock,
     const Block &refBlock,
     const Block &prevblock,
-    const bool doXor);
-
-void processBlockSSSE3(
-    Block &nextBlock,
-    const Block &refBlock,
-    const Block &prevBlock,
     const bool doXor);
 
 void processBlockSSE2(
