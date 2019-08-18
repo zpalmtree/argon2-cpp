@@ -5,8 +5,9 @@
 #pragma once
 
 #include <cmath>
-
 #include <cstddef>
+#include <stdexcept>
+#include <string>
 
 namespace Constants
 {
