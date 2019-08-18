@@ -1,14 +1,6 @@
-# Add the files we want to link against
-set(x86_intrinsics_source_files
-    ArgonIntrinsics.cpp
-    BlakeIntrinsics.cpp
-    CompressAVX2.cpp
-    CompressSSE41.cpp
-    CompressSSSE3.cpp
-    CompressSSE2.cpp
-    ProcessBlockAVX2.cpp
-    ProcessBlockSSSE3.cpp
-    ProcessBlockSSE2.cpp
+set(avx512_source_files
+    CompressAVX512.cpp
+    ProcessBlockAVX512.cpp
 )
 
 set(avx2_source_files
@@ -30,9 +22,21 @@ set(sse2_source_files
     ProcessBlockSSE2.cpp
 )
 
+set(x86_intrinsics_source_files
+    ArgonIntrinsics.cpp
+    BlakeIntrinsics.cpp
+    ${avx512_source_files}
+    ${avx2_source_files}
+    ${sse41_source_files}
+    ${ssse3_source_files}
+    ${sse2_source_files}
+)
+
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang" OR CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
 
     message(STATUS "Enabling GNU style -mavx flags")
+
+    set_source_files_properties(${avx512_source_files} PROPERTIES COMPILE_FLAGS -mavx512f)
 
     set_source_files_properties(${avx2_source_files} PROPERTIES COMPILE_FLAGS -mavx2)
 

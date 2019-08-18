@@ -18,12 +18,6 @@ static const bool hasSSE41 = features.sse4_1;
 static const bool hasSSSE3 = features.ssse3;
 static const bool hasSSE2 = features.sse2;
 
-void processBlockAVX512(
-    Block &nextBlock,
-    const Block &refBlock,
-    const Block &prevBlock,
-    const bool doXor);
-
 void processBlockSSE41(
     Block &nextBlock,
     const Block &refBlock,

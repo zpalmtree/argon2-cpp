@@ -34,18 +34,10 @@
 #include <iostream>
 
 #include "Argon2/Argon2.h"
+#include "Intrinsics/X86/ProcessBlockAVX512.h"
 #include "Intrinsics/X86/ProcessBlockAVX2.h"
 #include "Intrinsics/X86/ProcessBlockSSSE3.h"
 #include "Intrinsics/X86/ProcessBlockSSE2.h"
-
-void processBlockAVX512(
-    Block &nextBlock,
-    const Block &refBlock,
-    const Block &prevBlock,
-    const bool doXor)
-{
-    throw std::runtime_error("Function not yet implemented!");
-}
 
 void processBlockSSE41(
     Block &nextBlock,
@@ -80,7 +72,7 @@ void Argon2::processBlockGeneric(
 
     if (tryAVX512 && hasAVX512)
     {
-        processBlockAVX512(nextBlock, refBlock, prevBlock, doXor);
+        ProcessBlockAVX512::processBlockAVX512(nextBlock, refBlock, prevBlock, doXor);
     }
     else if (tryAVX2 && hasAVX2)
     {
