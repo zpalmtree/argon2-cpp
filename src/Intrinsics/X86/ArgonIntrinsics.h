@@ -29,9 +29,3 @@ void processBlockSSE41(
     const Block &refBlock,
     const Block &prevblock,
     const bool doXor);
-
-void processBlockSSE2(
-    Block &nextBlock,
-    const Block &refBlock,
-    const Block &prevBlock,
-    const bool doXor);

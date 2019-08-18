@@ -5,8 +5,10 @@ set(x86_intrinsics_source_files
     CompressAVX2.cpp
     CompressSSE41.cpp
     CompressSSSE3.cpp
+    CompressSSE2.cpp
     ProcessBlockAVX2.cpp
     ProcessBlockSSSE3.cpp
+    ProcessBlockSSE2.cpp
 )
 
 set(avx2_source_files
@@ -21,6 +23,11 @@ set(sse41_source_files
 set(ssse3_source_files
     CompressSSSE3.cpp
     ProcessBlockSSSE3.cpp
+)
+
+set(sse2_source_files
+    CompressSSE2.cpp
+    ProcessBlockSSE2.cpp
 )
 
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang" OR CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")

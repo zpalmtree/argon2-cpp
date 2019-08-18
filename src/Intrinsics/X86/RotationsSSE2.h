@@ -27,28 +27,28 @@
 
 #pragma once
 
-#include <cstdint>
+namespace RotationsSSE2
+{
+    inline void xor_values(__m128i* result, const __m128i* val1, const __m128i* val2) {
+        _mm_storeu_si128(result, _mm_xor_si128(
+                _mm_loadu_si128(val1),
+                _mm_loadu_si128(val2)
+        ));
+    }
 
-#include "Blake2/Blake2b.h"
-#include "cpu_features/include/cpuinfo_x86.h"
-#include "Intrinsics/X86/IncludeIntrinsics.h"
+    inline __m128i rotr32(__m128i x) {
+        return _mm_shuffle_epi32(x, _MM_SHUFFLE(2,3,0,1));
+    }
 
-static const cpu_features::X86Features features = cpu_features::GetX86Info().features;
+    inline __m128i rotr24(__m128i x) {
+        return _mm_xor_si128(_mm_srli_epi64(x, 24), _mm_slli_epi64(x, 40));
+    }
 
-static const bool hasAVX512 = features.avx512f;
-static const bool hasAVX2 = features.avx2;
-static const bool hasSSE41 = features.sse4_1;
-static const bool hasSSSE3 = features.ssse3;
-static const bool hasSSE2 = features.sse2;
+    inline __m128i rotr16(__m128i x) {
+        return _mm_xor_si128(_mm_srli_epi64(x, 16 ),_mm_slli_epi64(x, 48));
+    }
 
-static const __m128i IV128[4] = {
-    _mm_set_epi64x(0xbb67ae8584caa73bULL, 0x6a09e667f3bcc908ULL),
-    _mm_set_epi64x(0xa54ff53a5f1d36f1ULL, 0x3c6ef372fe94f82bULL),
-    _mm_set_epi64x(0x9b05688c2b3e6c1fULL, 0x510e527fade682d1ULL),
-    _mm_set_epi64x(0x5be0cd19137e2179ULL, 0x1f83d9abfb41bd6bULL)
-};
-
-void compressAVX512(
-    std::vector<uint64_t> &hash,
-    std::vector<uint64_t> &chunk,
-    std::vector<uint64_t> &compressXorFlags);
+    inline __m128i rotr63(__m128i x) {
+        return _mm_xor_si128(_mm_srli_epi64(x, 63), _mm_add_epi64(x, x));
+    }
+}

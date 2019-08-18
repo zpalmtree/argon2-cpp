@@ -36,6 +36,7 @@
 #include "Argon2/Argon2.h"
 #include "Intrinsics/X86/ProcessBlockAVX2.h"
 #include "Intrinsics/X86/ProcessBlockSSSE3.h"
+#include "Intrinsics/X86/ProcessBlockSSE2.h"
 
 void processBlockAVX512(
     Block &nextBlock,
@@ -54,15 +55,6 @@ void processBlockSSE41(
 {
     /* SSE4.1 Implementation is the same as SSSE3 for blamka */
     return ProcessBlockSSSE3::processBlockSSSE3(nextBlock, refBlock, prevBlock, doXor);
-}
-
-void processBlockSSE2(
-    Block &nextBlock,
-    const Block &refBlock,
-    const Block &prevBlock,
-    const bool doXor)
-{
-    throw std::logic_error("Function not yet implemented!");
 }
 
 void Argon2::processBlockGeneric(
@@ -104,7 +96,7 @@ void Argon2::processBlockGeneric(
     }
     else if (trySSE2 && hasSSE2)
     {
-        processBlockSSE2(nextBlock, refBlock, prevBlock, doXor);
+        ProcessBlockSSE2::processBlockSSE2(nextBlock, refBlock, prevBlock, doXor);
     }
     else
     {
