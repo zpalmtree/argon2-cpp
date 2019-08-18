@@ -30,6 +30,7 @@
 /////////////////////////////////////////
 
 #include "Blake2/Blake2b.h"
+#include "Intrinsics/X86/BlakeIntrinsics.h"
 #include "Intrinsics/X86/RotationsSSSE3.h"
 
 namespace CompressSSSE3
@@ -163,18 +164,11 @@ namespace CompressSSSE3
         __m128i row2l = _mm_loadu_si128(reinterpret_cast<__m128i *>(&hash[4]));
         __m128i row2h = _mm_loadu_si128(reinterpret_cast<__m128i *>(&hash[6]));
 
-        __m128i row3l = _mm_loadu_si128(reinterpret_cast<const __m128i *>(&Blake2b::IV[0]));
-        __m128i row3h = _mm_loadu_si128(reinterpret_cast<const __m128i *>(&Blake2b::IV[2]));
+        __m128i row3l = IV128[0];
+        __m128i row3h = IV128[1];
 
-        __m128i row4l = _mm_xor_si128(
-            _mm_loadu_si128(reinterpret_cast<const __m128i *>(&Blake2b::IV[4])),
-            _mm_loadu_si128(reinterpret_cast<__m128i *>(&compressXorFlags[0]))
-        );
-
-        __m128i row4h = _mm_xor_si128(
-            _mm_loadu_si128(reinterpret_cast<const __m128i *>(&Blake2b::IV[6])),
-            _mm_loadu_si128(reinterpret_cast<__m128i *>(&compressXorFlags[2]))
-        );
+        __m128i row4l = _mm_xor_si128(IV128[2], _mm_loadu_si128(reinterpret_cast<__m128i *>(&compressXorFlags[0])));
+        __m128i row4h = _mm_xor_si128(IV128[3], _mm_loadu_si128(reinterpret_cast<__m128i *>(&compressXorFlags[2])));
 
         for(int i = 0; i < 12; i++)
         {
