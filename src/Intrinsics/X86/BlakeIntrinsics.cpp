@@ -30,17 +30,10 @@
 ///////////////////////////////////////////
 
 #include "Intrinsics/X86/CompressAVX2.h"
+#include "Intrinsics/X86/CompressSSE41.h"
 #include "Intrinsics/X86/CompressSSSE3.h"
 
 void compressAVX512(
-    std::vector<uint64_t> &hash,
-    std::vector<uint64_t> &chunk,
-    std::vector<uint64_t> &compressXorFlags)
-{
-    throw std::logic_error("Function not yet implemented!");
-}
-
-void compressSSE41(
     std::vector<uint64_t> &hash,
     std::vector<uint64_t> &chunk,
     std::vector<uint64_t> &compressXorFlags)
@@ -83,7 +76,7 @@ void Blake2b::compress()
     }
     else if (trySSE41 && hasSSE41)
     {
-        compressSSE41(m_hash, m_chunk, m_compressXorFlags);
+        CompressSSE41::compressSSE41(m_hash, m_chunk, m_compressXorFlags);
     }
     else if (trySSSE3 && hasSSSE3)
     {

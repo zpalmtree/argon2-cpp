@@ -46,11 +46,6 @@ void compressAVX512(
     std::vector<uint64_t> &chunk,
     std::vector<uint64_t> &compressXorFlags);
 
-void compressSSE41(
-    std::vector<uint64_t> &hash,
-    std::vector<uint64_t> &chunk,
-    std::vector<uint64_t> &compressXorFlags);
-
 void compressSSE2(
     std::vector<uint64_t> &hash,
     std::vector<uint64_t> &chunk,
