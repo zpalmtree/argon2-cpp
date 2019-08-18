@@ -147,7 +147,7 @@ namespace ProcessBlockAVX512
 
         undiagonalizeAVX512(d0, b0, c0, d0, a1, b1, c1, d1);
 
-        unswapQuarters(a0, a0);
+        unswapQuarters(a0, a1);
         unswapQuarters(b0, b1);
         unswapQuarters(c0, c1);
         unswapQuarters(d0, d1);
@@ -183,7 +183,7 @@ namespace ProcessBlockAVX512
             );
         }
 
-        for(uint32_t i = 0; i < 2; i++)
+        for (uint32_t i = 0; i < 2; i++)
         {
             Round2(
                 state[2 * 0 + i], state[2 * 1 + i], state[2 * 2 + i], state[2 * 3 + i],
