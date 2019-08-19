@@ -1,7 +1,3 @@
-// Copyright (c) 2019, Zpalmtree
-//
-// Please see the included LICENSE file for more information.
-
 // Copyright (c) 2017, YANDEX LLC
 // All rights reserved.
 // 
@@ -25,6 +21,10 @@
 // WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+// Copyright (c) 2019, Zpalmtree
+//
+// Please see the included LICENSE file for more information.
+
 ////////////////////////////////////////
 #include "Intrinsics/X86/CompressAVX2.h"
 ////////////////////////////////////////
@@ -39,7 +39,8 @@ namespace CompressAVX2
      * c =  v8,  v9, v10, v11
      * d = v12, v13, v14, v15
      */
-    void g1AVX2(uint32_t r, __m256i& a, __m256i& b, __m256i& c, __m256i& d, uint64_t* blk, const __m128i vindex[12][4]) {
+    void g1AVX2(uint32_t r, __m256i& a, __m256i& b, __m256i& c, __m256i& d, uint64_t* blk, const __m128i vindex[12][4])
+    {
         a = _mm256_add_epi64(a, _mm256_add_epi64(b, _mm256_i32gather_epi64((long long int*)blk, vindex[r][0], 8)));
         d = RotationsAVX2::rotr32(_mm256_xor_si256(a, d));
         c = _mm256_add_epi64(c, d);
@@ -51,7 +52,8 @@ namespace CompressAVX2
         b = RotationsAVX2::rotr63(_mm256_xor_si256(b, c));
     }
 
-    void g2AVX2(uint32_t r, __m256i& a, __m256i& b, __m256i& c, __m256i& d, uint64_t* blk, const __m128i vindex[12][4]) {
+    void g2AVX2(uint32_t r, __m256i& a, __m256i& b, __m256i& c, __m256i& d, uint64_t* blk, const __m128i vindex[12][4])
+    {
         a = _mm256_add_epi64(a, _mm256_add_epi64(b, _mm256_i32gather_epi64((long long int*)blk, vindex[r][2], 8)));
         d = RotationsAVX2::rotr32(_mm256_xor_si256(a, d));
         c = _mm256_add_epi64(c, d);
@@ -63,13 +65,15 @@ namespace CompressAVX2
         b = RotationsAVX2::rotr63(_mm256_xor_si256(b, c));
     }
 
-    void diagonalizeAVX2(__m256i& b, __m256i& c, __m256i& d) {
+    void diagonalizeAVX2(__m256i& b, __m256i& c, __m256i& d)
+    {
         b = _mm256_permute4x64_epi64(b, _MM_SHUFFLE(0, 3, 2, 1));
         c = _mm256_permute4x64_epi64(c, _MM_SHUFFLE(1, 0, 3, 2));
         d = _mm256_permute4x64_epi64(d, _MM_SHUFFLE(2, 1, 0, 3));
     }
 
-    void undiagonalizeAVX2(__m256i& b, __m256i& c, __m256i& d) {
+    void undiagonalizeAVX2(__m256i& b, __m256i& c, __m256i& d)
+    {
         b = _mm256_permute4x64_epi64(b, _MM_SHUFFLE(2, 1, 0, 3));
         c = _mm256_permute4x64_epi64(c, _MM_SHUFFLE(1, 0, 3, 2));
         d = _mm256_permute4x64_epi64(d, _MM_SHUFFLE(0, 3, 2, 1));
@@ -117,6 +121,7 @@ namespace CompressAVX2
                 _mm256_loadu_si256((__m256i*)&hash[0]),
                 _mm256_xor_si256(a, c)
         ));
+
         _mm256_storeu_si256(((__m256i*)&hash[0]) + 1, _mm256_xor_si256(
                 _mm256_loadu_si256(((__m256i*)&hash[0]) + 1),
                 _mm256_xor_si256(b, d)

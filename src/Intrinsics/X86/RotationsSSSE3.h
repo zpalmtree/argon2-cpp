@@ -1,7 +1,3 @@
-// Copyright (c) 2019, Zpalmtree
-//
-// Please see the included LICENSE file for more information.
-
 // Copyright (c) 2017, YANDEX LLC
 // All rights reserved.
 // 
@@ -25,23 +21,31 @@
 // WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+// Copyright (c) 2019, Zpalmtree
+//
+// Please see the included LICENSE file for more information.
+
 #pragma once
 
 namespace RotationsSSSE3
 {
-    inline __m128i rotr32(__m128i x) {
+    inline __m128i rotr32(__m128i x)
+    {
         return _mm_shuffle_epi32(x, _MM_SHUFFLE(2,3,0,1));
     }
 
-    inline __m128i rotr24(__m128i x) {
+    inline __m128i rotr24(__m128i x)
+    {
         return _mm_shuffle_epi8(x, _mm_setr_epi8(3, 4, 5, 6, 7, 0, 1, 2, 11, 12, 13, 14, 15, 8, 9, 10));
     }
 
-    inline __m128i rotr16(__m128i x) {
+    inline __m128i rotr16(__m128i x)
+    {
         return _mm_shuffle_epi8(x, _mm_setr_epi8(2, 3, 4, 5, 6, 7, 0, 1, 10, 11, 12, 13, 14, 15, 8, 9));
     }
 
-    inline __m128i rotr63(__m128i x) {
+    inline __m128i rotr63(__m128i x)
+    {
         return _mm_xor_si128(_mm_srli_epi64(x, 63), _mm_add_epi64(x, x));
     }
 }

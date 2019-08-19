@@ -1,7 +1,3 @@
-// Copyright (c) 2019, Zpalmtree
-//
-// Please see the included LICENSE file for more information.
-
 // Copyright (c) 2017, YANDEX LLC
 // All rights reserved.
 // 
@@ -25,30 +21,31 @@
 // WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+// Copyright (c) 2019, Zpalmtree
+//
+// Please see the included LICENSE file for more information.
+
 #pragma once
 
 namespace RotationsSSE2
 {
-    inline void xor_values(__m128i* result, const __m128i* val1, const __m128i* val2) {
-        _mm_storeu_si128(result, _mm_xor_si128(
-                _mm_loadu_si128(val1),
-                _mm_loadu_si128(val2)
-        ));
-    }
-
-    inline __m128i rotr32(__m128i x) {
+    inline __m128i rotr32(__m128i x)
+    {
         return _mm_shuffle_epi32(x, _MM_SHUFFLE(2,3,0,1));
     }
 
-    inline __m128i rotr24(__m128i x) {
+    inline __m128i rotr24(__m128i x)
+    {
         return _mm_xor_si128(_mm_srli_epi64(x, 24), _mm_slli_epi64(x, 40));
     }
 
-    inline __m128i rotr16(__m128i x) {
+    inline __m128i rotr16(__m128i x)
+    {
         return _mm_xor_si128(_mm_srli_epi64(x, 16 ),_mm_slli_epi64(x, 48));
     }
 
-    inline __m128i rotr63(__m128i x) {
+    inline __m128i rotr63(__m128i x)
+    {
         return _mm_xor_si128(_mm_srli_epi64(x, 63), _mm_add_epi64(x, x));
     }
 }

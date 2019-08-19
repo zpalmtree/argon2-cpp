@@ -2,7 +2,7 @@
 //
 // Please see the included LICENSE file for more information.
 
-// Copyright (c) 2009 The Go Authors. All rights reserved.
+// Portions Copyright (c) 2009 The Go Authors. All rights reserved.
 // 
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are
@@ -290,8 +290,11 @@ void Argon2::processSegment(
     Block in {};
     Block zero {};
 
-    if (m_mode == Constants::ARGON2I
-    || (m_mode == Constants::ARGON2ID && n == 0 && slice < Constants::SYNC_POINTS / 2))
+    const bool modificationI =
+        m_mode == Constants::ARGON2I
+    || (m_mode == Constants::ARGON2ID && n == 0 && slice < Constants::SYNC_POINTS / 2);
+
+    if (modificationI)
     {
         in[0] = n;
         in[1] = lane;
@@ -329,9 +332,7 @@ void Argon2::processSegment(
             prev += m_lanes;
         }
 
-        /* TODO: Combine */
-        if (m_mode == Constants::ARGON2I
-        || (m_mode == Constants::ARGON2ID && n == 0 && slice < Constants::SYNC_POINTS / 2))
+        if (modificationI)
         {
             if (index % Constants::BLOCK_SIZE == 0)
             {
