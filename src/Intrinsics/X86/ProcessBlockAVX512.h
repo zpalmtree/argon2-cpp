@@ -57,6 +57,10 @@ namespace ProcessBlockAVX512
         __m512i& a0, __m512i& b0, __m512i& c0, __m512i& d0,
         __m512i& a1, __m512i& b1, __m512i& c1, __m512i& d1);
 
+    void Round(
+        __m512i& a0, __m512i& b0, __m512i& c0, __m512i& d0,
+        __m512i& a1, __m512i& b1, __m512i& c1, __m512i& d1);
+
     void Round1(
         __m512i& a0, __m512i& c0, __m512i& b0, __m512i& d0,
         __m512i& a1, __m512i& c1, __m512i& b1, __m512i& d1);

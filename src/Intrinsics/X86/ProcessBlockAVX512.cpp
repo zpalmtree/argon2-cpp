@@ -94,13 +94,28 @@ namespace ProcessBlockAVX512
         __m512i& a1, __m512i& b1, __m512i& c1, __m512i& d1)
     {
         b0 = _mm512_permutex_epi64(b0, _MM_SHUFFLE(2, 1, 0, 3));
-        b0 = _mm512_permutex_epi64(b1, _MM_SHUFFLE(2, 1, 0, 3));
+        b1 = _mm512_permutex_epi64(b1, _MM_SHUFFLE(2, 1, 0, 3));
 
         c0 = _mm512_permutex_epi64(c0, _MM_SHUFFLE(1, 0, 3, 2));
         c1 = _mm512_permutex_epi64(c1, _MM_SHUFFLE(1, 0, 3, 2));
 
         d0 = _mm512_permutex_epi64(d0, _MM_SHUFFLE(0, 3, 2, 1));
         d1 = _mm512_permutex_epi64(d1, _MM_SHUFFLE(0, 3, 2, 1));
+    }
+
+    void Round(
+        __m512i& a0, __m512i& b0, __m512i& c0, __m512i& d0,
+        __m512i& a1, __m512i& b1, __m512i& c1, __m512i& d1)
+    {
+	blamkaG1AVX512(a0, b0, c0, d0, a1, b1, c1, d1);
+        blamkaG2AVX512(a0, b0, c0, d0, a1, b1, c1, d1);
+
+	diagonalizeAVX512(a0, b0, c0, d0, a1, b1, c1, d1);
+
+        blamkaG1AVX512(a0, b0, c0, d0, a1, b1, c1, d1);
+        blamkaG2AVX512(a0, b0, c0, d0, a1, b1, c1, d1);
+
+        undiagonalizeAVX512(a0, b0, c0, d0, a1, b1, c1, d1);
     }
 
     void Round1(
@@ -112,15 +127,7 @@ namespace ProcessBlockAVX512
         swapHalves(a1, b1);
         swapHalves(c1, d1);
 
-        blamkaG1AVX512(a0, b0, c0, d0, a1, b1, c1, d1);
-        blamkaG2AVX512(a0, b0, c0, d0, a1, b1, c1, d1);
-
-        diagonalizeAVX512(d0, b0, c0, d0, a1, b1, c1, d1);
-
-        blamkaG1AVX512(a0, b0, c0, d0, a1, b1, c1, d1);
-        blamkaG2AVX512(a0, b0, c0, d0, a1, b1, c1, d1);
-
-        undiagonalizeAVX512(d0, b0, c0, d0, a1, b1, c1, d1);
+        Round(a0, b0, c0, d0, a1, b1, c1, d1);
 
         swapHalves(a0, b0);
         swapHalves(c0, d0);
@@ -137,15 +144,7 @@ namespace ProcessBlockAVX512
         swapQuarters(c0, c1);
         swapQuarters(d0, d1);
 
-        blamkaG1AVX512(a0, b0, c0, d0, a1, b1, c1, d1);
-        blamkaG2AVX512(a0, b0, c0, d0, a1, b1, c1, d1);
-
-        diagonalizeAVX512(d0, b0, c0, d0, a1, b1, c1, d1);
-
-        blamkaG1AVX512(a0, b0, c0, d0, a1, b1, c1, d1);
-        blamkaG2AVX512(a0, b0, c0, d0, a1, b1, c1, d1);
-
-        undiagonalizeAVX512(d0, b0, c0, d0, a1, b1, c1, d1);
+        Round(a0, b0, c0, d0, a1, b1, c1, d1);
 
         unswapQuarters(a0, a1);
         unswapQuarters(b0, b1);
@@ -190,7 +189,7 @@ namespace ProcessBlockAVX512
                 state[2 * 4 + i], state[2 * 5 + i], state[2 * 6 + i], state[2 * 7 + i]
             );
         }
-            
+
         if (doXor)
         {
             for (int i = 0; i < 16; i++)
