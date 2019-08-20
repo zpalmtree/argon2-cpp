@@ -27,6 +27,7 @@ namespace Constants
         SSE41,
         SSSE3,
         SSE2,
+        NEON,
         NONE,
         AUTO,
     };
@@ -54,6 +55,10 @@ namespace Constants
             case SSE2:
             {
                 return "SSE2";
+            }
+            case NEON:
+            {
+                return "NEON";
             }
             case NONE:
             {
@@ -89,6 +94,10 @@ namespace Constants
         else if (method == "SSE2")
         {
             return SSE2;
+        }
+        else if (method == "NEON")
+        {
+            return NEON;
         }
         else if (method == "None")
         {

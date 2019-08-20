@@ -16,7 +16,11 @@
 
 set(archdetect_c_code "
 #if defined(__arm__) || defined(__TARGET_ARCH_ARM)
-    #if defined(__ARM_ARCH_7__) \\
+    #if defined(__ARM_ARCH_8__) \\
+        || defined(__aarch64__) \\
+        || (defined(__TARGET_ARCH_ARM) && __TARGET_ARCH_ARM-0 >= 8) \\
+        #error cmake_ARCH armv8
+    #elif defined(__ARM_ARCH_7__) \\
         || defined(__ARM_ARCH_7A__) \\
         || defined(__ARM_ARCH_7R__) \\
         || defined(__ARM_ARCH_7M__) \\
@@ -37,6 +41,8 @@ set(archdetect_c_code "
     #else
         #error cmake_ARCH arm
     #endif
+#elif defined(__aarch64__)
+    #error cmake_ARCH armv8
 #elif defined(__i386) || defined(__i386__) || defined(_M_IX86)
     #error cmake_ARCH i386
 #elif defined(__x86_64) || defined(__x86_64__) || defined(__amd64) || defined(_M_X64)
@@ -56,10 +62,20 @@ set(archdetect_c_code "
 #error cmake_ARCH unknown
 ")
 
+function(target_architecture output_var)
+    target_architecture_internal(ARCH)
+
+    if (NOT "${FORCE_ARCH}" STREQUAL "")
+        set(${output_var} "${FORCE_ARCH}" PARENT_SCOPE)
+    else()
+        set(${output_var} "${ARCH}" PARENT_SCOPE)
+    endif()
+endfunction()
+
 # Set ppc_support to TRUE before including this file or ppc and ppc64
 # will be treated as invalid architectures since they are no longer supported by Apple
 
-function(target_architecture output_var)
+function(target_architecture_internal output_var)
     if(APPLE AND CMAKE_OSX_ARCHITECTURES)
         # On OS X we use CMAKE_OSX_ARCHITECTURES *if* it was set
         # First let's normalize the order of the values
