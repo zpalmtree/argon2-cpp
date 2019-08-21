@@ -2,15 +2,31 @@
 //
 // Please see the included LICENSE file for more information.
 
+///////////////////////////////////////////
+#include "Intrinsics/ARM/ArgonIntrinsics.h"
+///////////////////////////////////////////
+
 #include <cstddef>
+#include <cstring>
 
 #include "Argon2/Argon2.h"
+#include "Intrinsics/ARM/ProcessBlockNEON.h"
 
 void Argon2::processBlockGeneric(
-    Block &out,
-    const Block &in1,
-    const Block &in2,
+    Block &nextBlock,
+    const Block &refBlock,
+    const Block &prevBlock,
     const bool doXor)
 {
-    processBlockGenericCrossPlatform(out, in1, in2, doXor);
+    const bool tryNEON = 
+        m_optimizationMethod == Constants::NEON || m_optimizationMethod == Constants::AUTO;
+
+    if (tryNEON && hasNEON)
+    {
+        ProcessBlockNEON::processBlockNEON(nextBlock, refBlock, prevBlock, doXor);
+    }
+    else
+    {
+        processBlockGenericCrossPlatform(nextBlock, refBlock, prevBlock, doXor);
+    }
 }

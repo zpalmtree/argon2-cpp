@@ -8,6 +8,8 @@ add_subdirectory(Blake2)
 include(TargetArch)
 target_architecture(ARCH)
 
+message(STATUS "Processor: ${CMAKE_SYSTEM_PROCESSOR}")
+
 # Add cpu_features if we're going to need them for runtime dispatching
 if("${ARCH}" STREQUAL "x86_64" OR "${ARCH}" STREQUAL "armv8" OR "${ARCH}" STREQUAL "armv7" OR "${ARCH}" STREQUAL "arm")
     add_subdirectory(cpu_features)
