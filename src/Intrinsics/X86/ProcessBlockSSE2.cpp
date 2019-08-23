@@ -153,7 +153,7 @@ namespace ProcessBlockSSE2
         /* Xor block */
         for (int i = 0; i < 64; i++)
         {
-            state[i] = _mm_xor_si128(state[i], _mm_loadu_si128(reinterpret_cast<const __m128i *>(prevBlock.data()) + i));
+            state[i] = _mm_xor_si128(state[i], prevBlockIntrinsic[i]);
         }
 
         for (uint32_t i = 0; i < 8; i++)

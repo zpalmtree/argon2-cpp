@@ -182,7 +182,7 @@ namespace ProcessBlockAVX2
         /* Xor block */
         for (int i = 0; i < 32; i++)
         {
-            state[i] = _mm256_xor_si256(state[i], _mm256_loadu_si256(reinterpret_cast<const __m256i *>(prevBlock.data()) + i));
+            state[i] = _mm256_xor_si256(state[i], prevBlockIntrinsic[i]);
         }
 
         for (uint32_t i = 0; i < 4; i++)

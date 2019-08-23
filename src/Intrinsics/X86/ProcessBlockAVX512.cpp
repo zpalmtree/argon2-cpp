@@ -171,7 +171,7 @@ namespace ProcessBlockAVX512
         /* Xor block */
         for (int i = 0; i < 16; i++)
         {
-            state[i] = _mm512_xor_si512(state[i], _mm512_loadu_si512(reinterpret_cast<const __m512i *>(prevBlock.data()) + i));
+            state[i] = _mm512_xor_si512(state[i], prevBlockIntrinsic[i]);
         }
 
         for (uint32_t i = 0; i < 2; i++)
