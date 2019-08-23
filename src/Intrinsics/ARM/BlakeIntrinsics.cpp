@@ -8,14 +8,9 @@
 
 void Blake2b::compress()
 {
-    bool tryNEON = m_optimizationMethod == Constants::NEON;
-
-    /* Only enable NEON by default on Armv7. https://github.com/weidai11/cryptopp/issues/367 */
-    #if defined(ARMV7_OPTIMIZATIONS)
-    tryNEON = tryNEON || m_optimizationMethod == Constants::AUTO;
-    #endif
-
-    if (tryNEON && hasNEON)
+    /* NEON disabled by default unless specifically specified.
+       https://github.com/weidai11/cryptopp/issues/367 */
+    if (m_optimizationMethod == Constants::NEON && hasNEON)
     {
         CompressNEON::compressNEON(m_hash, m_chunk, m_compressXorFlags);
     }

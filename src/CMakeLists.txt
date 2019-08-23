@@ -15,12 +15,14 @@ message(STATUS "Processor: ${CMAKE_SYSTEM_PROCESSOR}")
 # version. I'm just gonna set it manually rather than figure out what's going wrong.
 if("${ARCH}" STREQUAL "armv8")
     set(CMAKE_SYSTEM_PROCESSOR aarch64)
+# Not actually needed anymore since we only include cpu_features on ARMv8 or x86_64,
+# but maybe we'll manage to add 32 bit NEON some day.
 elseif("${ARCH}" STREQUAL "armv7" OR "${ARCH}" STREQUAL "arm")
     set(CMAKE_SYSTEM_PROCESSOR arm)
 endif()
 
 # Add cpu_features if we're going to need them for runtime dispatching
-if("${ARCH}" STREQUAL "x86_64" OR "${ARCH}" STREQUAL "armv8" OR "${ARCH}" STREQUAL "armv7" OR "${ARCH}" STREQUAL "arm")
+if("${ARCH}" STREQUAL "x86_64" OR "${ARCH}" STREQUAL "armv8")
     add_subdirectory(cpu_features)
 endif()
 

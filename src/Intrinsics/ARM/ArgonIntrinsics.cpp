@@ -18,14 +18,9 @@ void Argon2::processBlockGeneric(
     const Block &prevBlock,
     const bool doXor)
 {
-    bool tryNEON = m_optimizationMethod == Constants::NEON;
-
-    /* Only enable NEON by default on Armv7. https://github.com/weidai11/cryptopp/issues/367 */
-    #if defined(ARMV7_OPTIMIZATIONS)
-    tryNEON = tryNEON || m_optimizationMethod == Constants::AUTO;
-    #endif
-
-    if (tryNEON && hasNEON)
+    /* NEON disabled by default unless explicitly specified.
+       https://github.com/weidai11/cryptopp/issues/367 */
+    if (m_optimizationMethod == Constants::NEON && hasNEON)
     {
         ProcessBlockNEON::processBlockNEON(nextBlock, refBlock, prevBlock, doXor);
     }
