@@ -147,6 +147,11 @@ function(target_architecture_internal output_var)
         # Get rid of the value marker leaving just the architecture name
         string(REPLACE "cmake_ARCH " "" ARCH "${ARCH}")
 
+        if ("${ARCH}" STREQUAL "armv8" AND CMAKE_SIZEOF_VOID_P LESS_EQUAL 4)
+            message(STATUS "Forcing armv8 detected processor in 32 bit environment to armv7 arch")
+            set(ARCH armv7)
+        endif()
+
         # If we are compiling with an unknown architecture this variable should
         # already be set to "unknown" but in the case that it's empty (i.e. due
         # to a typo in the code), then set it to unknown

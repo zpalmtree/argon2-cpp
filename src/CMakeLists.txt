@@ -13,8 +13,10 @@ message(STATUS "Processor: ${CMAKE_SYSTEM_PROCESSOR}")
 # For some reason, CMAKE_SYSTEM_PROCESSOR does not appear to remain set when
 # cross compiling, so we get into cpu_features, and it tries to include the x86_64
 # version. I'm just gonna set it manually rather than figure out what's going wrong.
-if("${ARCH}" STREQUAL "armv8" OR "${ARCH}" STREQUAL "armv7" OR "${ARCH}" STREQUAL "arm")
+if("${ARCH}" STREQUAL "armv8")
     set(CMAKE_SYSTEM_PROCESSOR aarch64)
+elseif("${ARCH}" STREQUAL "armv7" OR "${ARCH}" STREQUAL "arm")
+    set(CMAKE_SYSTEM_PROCESSOR arm)
 endif()
 
 # Add cpu_features if we're going to need them for runtime dispatching
