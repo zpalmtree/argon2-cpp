@@ -11,13 +11,13 @@
 
 namespace CompressAVX2
 {
-    void g1AVX2(uint32_t r, __m256i& a, __m256i& b, __m256i& c, __m256i& d, uint64_t* blk, const __m128i vindex[12][4]);
+    void g1AVX2(__m256i& a, __m256i& b, __m256i& c, __m256i& d, __m256i& m);
 
-    void g2AVX2(uint32_t r, __m256i& a, __m256i& b, __m256i& c, __m256i& d, uint64_t* blk, const __m128i vindex[12][4]);
+    void g2AVX2(__m256i& a, __m256i& b, __m256i& c, __m256i& d, __m256i& m);
 
-    void diagonalizeAVX2(__m256i& b, __m256i& c, __m256i& d);
+    void diagonalizeAVX2(__m256i& a, __m256i& c, __m256i& d);
 
-    void undiagonalizeAVX2(__m256i& b, __m256i& c, __m256i& d);
+    void undiagonalizeAVX2(__m256i& a, __m256i& c, __m256i& d);
 
     void compressAVX2(
         std::vector<uint64_t> &hash,
