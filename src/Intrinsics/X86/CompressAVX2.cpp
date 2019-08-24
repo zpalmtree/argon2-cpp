@@ -69,14 +69,14 @@ namespace CompressAVX2
             BLAKE2B_LOAD_MSG_ ##r ##_2(b0);               \
             g2AVX2(a, b, c, d, b0);                       \
                                                           \
-            diagonalizeAVX2(a, b, d);                     \
+            diagonalizeAVX2(a, c, d);                     \
             BLAKE2B_LOAD_MSG_ ##r ##_3(b0);               \
                                                           \
             g1AVX2(a, b, c, d, b0);                       \
             BLAKE2B_LOAD_MSG_ ##r ##_4(b0);               \
                                                           \
             g2AVX2(a, b, c, d, b0);                       \
-            undiagonalizeAVX2(a, b, d);                   \
+            undiagonalizeAVX2(a, c, d);                   \
         } while(0)
 
     void compressAVX2(
