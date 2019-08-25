@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <stdexcept>
@@ -73,8 +74,12 @@ namespace Constants
         throw std::invalid_argument("Unknown optimization method!");
     }
 
-    inline OptimizationMethod optimizationMethodFromString(const std::string &method)
+    inline OptimizationMethod optimizationMethodFromString(const std::string &methodInput)
     {
+        std::string method = methodInput;
+
+        std::transform(method.begin(), method.end(), method.begin(), ::toupper);
+
         if (method == "AVX-512")
         {
             return AVX512;
@@ -99,16 +104,16 @@ namespace Constants
         {
             return NEON;
         }
-        else if (method == "None")
+        else if (method == "NONE")
         {
             return NONE;
         }
-        else if (method == "Auto")
+        else if (method == "AUTO")
         {
             return AUTO;
         }
 
-        throw std::invalid_argument("Optimization method " + method + " is unknown.");
+        throw std::invalid_argument("Optimization method " + methodInput + " is unknown.");
     }
 
     /* Parallelism must be < 2^24 - 1 */
