@@ -107,10 +107,10 @@ namespace ProcessBlockAVX512
         __m512i& a0, __m512i& b0, __m512i& c0, __m512i& d0,
         __m512i& a1, __m512i& b1, __m512i& c1, __m512i& d1)
     {
-	blamkaG1AVX512(a0, b0, c0, d0, a1, b1, c1, d1);
+        blamkaG1AVX512(a0, b0, c0, d0, a1, b1, c1, d1);
         blamkaG2AVX512(a0, b0, c0, d0, a1, b1, c1, d1);
 
-	diagonalizeAVX512(a0, b0, c0, d0, a1, b1, c1, d1);
+        diagonalizeAVX512(a0, b0, c0, d0, a1, b1, c1, d1);
 
         blamkaG1AVX512(a0, b0, c0, d0, a1, b1, c1, d1);
         blamkaG2AVX512(a0, b0, c0, d0, a1, b1, c1, d1);
