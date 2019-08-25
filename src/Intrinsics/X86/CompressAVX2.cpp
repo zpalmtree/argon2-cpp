@@ -84,14 +84,31 @@ namespace CompressAVX2
         std::vector<uint64_t> &chunk,
         std::vector<uint64_t> &compressXorFlags)
     {
-        const __m256i m0 = _mm256_broadcastsi128_si256(_mm_loadu_si128(reinterpret_cast<const __m128i *>(&chunk[0])));
-        const __m256i m1 = _mm256_broadcastsi128_si256(_mm_loadu_si128(reinterpret_cast<const __m128i *>(&chunk[2])));
-        const __m256i m2 = _mm256_broadcastsi128_si256(_mm_loadu_si128(reinterpret_cast<const __m128i *>(&chunk[4])));
-        const __m256i m3 = _mm256_broadcastsi128_si256(_mm_loadu_si128(reinterpret_cast<const __m128i *>(&chunk[6])));
-        const __m256i m4 = _mm256_broadcastsi128_si256(_mm_loadu_si128(reinterpret_cast<const __m128i *>(&chunk[8])));
-        const __m256i m5 = _mm256_broadcastsi128_si256(_mm_loadu_si128(reinterpret_cast<const __m128i *>(&chunk[10])));
-        const __m256i m6 = _mm256_broadcastsi128_si256(_mm_loadu_si128(reinterpret_cast<const __m128i *>(&chunk[12])));
-        const __m256i m7 = _mm256_broadcastsi128_si256(_mm_loadu_si128(reinterpret_cast<const __m128i *>(&chunk[14])));
+        __m256i m0;
+        __m256i m1;
+        __m256i m2;
+        __m256i m3;
+        __m256i m4;
+        __m256i m5;
+        __m256i m6;
+        __m256i m7;
+
+        #if _MSC_VER && !__INTEL_COMPILER
+        /* MSVC messes up the loading with _mm256_broadcastsi128_si256.
+           We disable optimizations to fix this for MSVC. To avoid deoptimizing
+           the whole compress function, we split it into a small function to
+           only take effect there */
+        loadChunk(m0, m1, m2, m3, m4, m5, m6, m7, chunk);
+        #else
+        m0 = _mm256_broadcastsi128_si256(_mm_loadu_si128(reinterpret_cast<const __m128i *>(&chunk[0])));
+        m1 = _mm256_broadcastsi128_si256(_mm_loadu_si128(reinterpret_cast<const __m128i *>(&chunk[2])));
+        m2 = _mm256_broadcastsi128_si256(_mm_loadu_si128(reinterpret_cast<const __m128i *>(&chunk[4])));
+        m3 = _mm256_broadcastsi128_si256(_mm_loadu_si128(reinterpret_cast<const __m128i *>(&chunk[6])));
+        m4 = _mm256_broadcastsi128_si256(_mm_loadu_si128(reinterpret_cast<const __m128i *>(&chunk[8])));
+        m5 = _mm256_broadcastsi128_si256(_mm_loadu_si128(reinterpret_cast<const __m128i *>(&chunk[10])));
+        m6 = _mm256_broadcastsi128_si256(_mm_loadu_si128(reinterpret_cast<const __m128i *>(&chunk[12])));
+        m7 = _mm256_broadcastsi128_si256(_mm_loadu_si128(reinterpret_cast<const __m128i *>(&chunk[14])));
+        #endif
 
         static const __m256i iv[2] = {
             _mm256_set_epi64x(0xa54ff53a5f1d36f1ULL, 0x3c6ef372fe94f82bULL, 0xbb67ae8584caa73bULL, 0x6a09e667f3bcc908ULL),
