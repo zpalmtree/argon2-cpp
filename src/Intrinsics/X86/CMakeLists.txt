@@ -1,4 +1,5 @@
 set(avx512_source_files
+    ArgonIntrinsics.cpp
     CompressAVX512.cpp
     ProcessBlockAVX512.cpp
 )
@@ -23,7 +24,6 @@ set(sse2_source_files
 )
 
 set(x86_intrinsics_source_files
-    ArgonIntrinsics.cpp
     BlakeIntrinsics.cpp
     ${avx512_source_files}
     ${avx2_source_files}
