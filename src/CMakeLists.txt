@@ -28,8 +28,11 @@ endif()
 
 add_subdirectory(Intrinsics)
 
-# Add the Argon2 directory as an include directory, so we can #include <Argon2/Argon2.h>
+if (ENABLE_NVIDIA)
+    add_subdirectory(Nvidia)
+    target_include_directories(Nvidia PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
+endif()
+
 target_include_directories(Argon2 PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 
-# Add the Blake2 directory as an include directory, so we can #include <Blake2/Blake2b.h>
 target_include_directories(Blake2 PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
