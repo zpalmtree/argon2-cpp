@@ -25,7 +25,7 @@ __device__ __constant__ uint8_t SIGMA[12][16] =
 
 /* https://stackoverflow.com/a/13732181/8737306 */
 template<typename T>
-__device__ T rotateRight(T x, unsigned int moves)
+__device__ __forceinline__ T rotateRight(T x, unsigned int moves)
 {
     return (x >> moves) | (x << (sizeof(T) * 8 - moves));
 }
@@ -138,7 +138,7 @@ void blake2bGPU(
 
     while (inputLength > 0)
     {
-        if (chunkSize == 0)
+        if (chunkSize == 128)
         {
             compress(hash, compressXorFlags, chunk);
             chunkSize = 0;
@@ -149,25 +149,25 @@ void blake2bGPU(
         if (size > inputLength)
         {
             size = static_cast<uint8_t>(inputLength);
-
-            ptr = static_cast<uint8_t *>(ptr) + chunkSize;
-
-            std::memcpy(ptr, input + offset, size);
-
-            chunkSize += size;
-
-            /* compressXorFlags[0..1] is a 128 bit number stored in little endian. */
-            /* Increase the bottom bits */
-            compressXorFlags[0] += size;
-
-            /* If it's less than the value we just added, we overflowed, and need to
-               add one to the top bits */
-            compressXorFlags[1] += (compressXorFlags[0] < size) ? 1 : 0;
-
-            inputLength -= size;
-
-            offset += size;
         }
+
+        ptr = static_cast<uint8_t *>(ptr) + chunkSize;
+
+        std::memcpy(ptr, input + offset, size);
+
+        chunkSize += size;
+
+        /* compressXorFlags[0..1] is a 128 bit number stored in little endian. */
+        /* Increase the bottom bits */
+        compressXorFlags[0] += size;
+
+        /* If it's less than the value we just added, we overflowed, and need to
+           add one to the top bits */
+        compressXorFlags[1] += (compressXorFlags[0] < size) ? 1 : 0;
+
+        inputLength -= size;
+
+        offset += size;
     }
 
     ptr = static_cast<void *>(&chunk[0]);
@@ -185,14 +185,74 @@ void blake2bGPU(
     std::memcpy(result, &hash[0], outputHashLength);
 }
 
+const size_t BLOCK_SIZE = 128;
+const size_t SYNC_POINTS = 4;
+const size_t HASH_SIZE = 64;
+const size_t INITIAL_HASH_SIZE = 72;
+
+const uint32_t TRTL_MEMORY = 512;
+const uint32_t TRTL_SCRATCHPAD_SIZE = TRTL_MEMORY;
+const uint32_t TRTL_LANES = TRTL_MEMORY;
+const uint32_t TRTL_SALT_LENGTH = 16;
+const uint32_t TRTL_ITERATIONS = 3;
+
+__device__
+void argon2idTRTLGPU(
+    uint8_t *message,
+    size_t messageLength, 
+    uint8_t *salt,
+    uint8_t *result)
+{
+    uint64_t grid[TRTL_SCRATCHPAD_SIZE][BLOCK_SIZE] = {};
+
+    const uint32_t threads = 1;
+    const uint32_t keyLen = 32;
+    const uint32_t memory = TRTL_MEMORY;
+    const uint32_t time = TRTL_ITERATIONS;
+    const uint32_t version = 19; /* Argon version */
+    const uint32_t mode = 2; /* Argon2id */
+
+    const uint32_t messageSize = static_cast<uint32_t>(messageLength);
+    const uint32_t saltSize = TRTL_SALT_LENGTH;
+    const uint32_t secretSize = 0;
+    const uint32_t dataSize = 0;
+
+    const size_t inputSize = sizeof(threads) + sizeof(keyLen) + sizeof(memory)
+        + sizeof(time) + sizeof(version) + sizeof(mode) + sizeof(messageSize)
+        + messageSize + sizeof(saltSize) + saltSize + sizeof(secretSize) + secretSize
+        + sizeof(dataSize) + dataSize;
+
+    uint8_t *initialInput = (uint8_t *)malloc(inputSize);
+
+    std::memcpy(&initialInput[0], &threads, sizeof(threads));
+    std::memcpy(&initialInput[4], &keyLen, sizeof(keyLen));
+    std::memcpy(&initialInput[8], &memory, sizeof(memory));
+    std::memcpy(&initialInput[12], &time, sizeof(time));
+    std::memcpy(&initialInput[16], &version, sizeof(version));
+    std::memcpy(&initialInput[20], &mode, sizeof(mode));
+    std::memcpy(&initialInput[24], &message, messageSize * sizeof(uint8_t));
+    std::memcpy(&initialInput[24 + messageSize], &salt, saltSize * sizeof(uint8_t));
+
+    uint8_t initialHash[INITIAL_HASH_SIZE];
+
+    blake2bGPU(initialHash, initialInput, inputSize, HASH_SIZE);
+
+    free(initialInput);
+
+    for (int i = 0; i < 32; i++)
+    {
+        result[i] = initialHash[i];
+    }
+}
+
 void __global__
 hashKernel(
-    uint8_t *result,
-    uint8_t *input,
-    size_t inputLength,
-    uint8_t outputHashLength) /* Note: 1 to 64 bytes */
+    uint8_t *message,
+    size_t messageLength, 
+    uint8_t *salt,
+    uint8_t *result)
 {
-    blake2bGPU(result, input, inputLength, outputHashLength);
+    argon2idTRTLGPU(message, messageLength, salt, result);
 }
 
 /* input = 32 char byte array.
@@ -201,34 +261,78 @@ void byteArrayToHexString(const uint8_t *input, char *output)
 {
     char hexval[16] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
 
-    for (int i = 0; i < 64; i++)
+    for (int i = 0; i < 32; i++)
     {
         output[i * 2] = hexval[((input[i] >> 4) & 0xF)];
         output[(i * 2) + 1] = hexval[(input[i]) & 0x0F];
     }
 }
 
+#define ERROR_CHECK(ans) { gpuAssert((ans), __FILE__, __LINE__); }
+inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort = true)
+{
+    if (code != cudaSuccess)
+    {
+        std::string errorStr = cudaGetErrorString(code);
+
+        std::cout << "CUDA Error " << errorStr << " at " << file << ", Line " << line << std::endl;
+
+        if (abort)
+        {
+            throw std::runtime_error(errorStr);
+        }
+    }
+}
+
 void hash()
 {
-    size_t outputHashLen = 64;
+    const uint8_t chukwaInput[] = {
+        1, 0, 251, 142, 138, 200, 5, 137, 147, 35, 55, 27, 183, 144, 219, 25,
+        33, 138, 253, 141, 184, 227, 117, 93, 139, 144, 243, 155, 61, 85, 6,
+        169, 171, 206, 79, 169, 18, 36, 69, 0, 0, 0, 0, 238, 129, 70, 212, 159,
+        169, 62, 231, 36, 222, 181, 125, 18, 203, 198, 198, 243, 185, 36, 217,
+        70, 18, 124, 122, 151, 65, 143, 147, 72, 130, 143, 15, 2
+    };
 
+    size_t messageLength = sizeof(chukwaInput) / sizeof(*chukwaInput);
+
+    uint8_t *message;
+    uint8_t *salt;
     uint8_t *result;
 
-    cudaMallocManaged(&result, outputHashLen * sizeof(uint8_t));
+    /* Allocate message, salt, and result on GPU memory */
+    ERROR_CHECK(cudaMalloc((void **)&message, messageLength * sizeof(uint8_t)));
+    ERROR_CHECK(cudaMalloc((void **)&salt, 16 * sizeof(uint8_t)));
+    ERROR_CHECK(cudaMalloc((void **)&result, 32 * sizeof(uint8_t)));
+
+    /* Initialize message and salt on the GPU from the CPU */
+    ERROR_CHECK(cudaMemcpy(message, &chukwaInput, messageLength, cudaMemcpyHostToDevice));
+    ERROR_CHECK(cudaMemcpy(salt, &chukwaInput, 16, cudaMemcpyHostToDevice));
 
     std::cout << "Launching kernel" << std::endl;
 
-    hashKernel<<<1, 1>>>(result, nullptr, 0, outputHashLen);
+    /* Launch the kernel */
+    hashKernel<<<1, 1>>>(message, messageLength, salt, result);
 
-    cudaDeviceSynchronize();
-    
-    char output[129];
+    ERROR_CHECK(cudaPeekAtLastError());
+    ERROR_CHECK(cudaDeviceSynchronize());
 
-    byteArrayToHexString(result, output);
+    std::cout << "Kernel finished running" << std::endl;
 
-    output[128] = '\0';
+    uint8_t hostResult[32];
+
+    /* Copy the result from GPU memory to CPU memory */
+    ERROR_CHECK(cudaMemcpy(&hostResult, result, 32, cudaMemcpyDeviceToHost));
+
+    char output[65];
+
+    byteArrayToHexString(hostResult, output);
+
+    output[64] = '\0';
 
     std::cout << output << std::endl;
 
+    cudaFree(message);
+    cudaFree(salt);
     cudaFree(result);
 }
