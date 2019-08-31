@@ -777,15 +777,11 @@ std::vector<uint8_t> nvidiaHash(const std::vector<uint8_t> &input, const std::ve
     /* Zero out grid */
     ERROR_CHECK(cudaMemset(grid, 0, TRTL_SCRATCHPAD_SIZE * BLOCK_SIZE * sizeof(uint64_t)));
 
-    std::cout << "Launching kernel" << std::endl;
-
     /* Launch the kernel */
     hashKernel<<<1, 1>>>(message, messageLength, salt, grid, result);
 
     ERROR_CHECK(cudaPeekAtLastError());
     ERROR_CHECK(cudaDeviceSynchronize());
-
-    std::cout << "Kernel finished running" << std::endl;
 
     std::vector<uint8_t> hostResult(RESULT_HASH_SIZE);
 
