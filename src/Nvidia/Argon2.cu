@@ -5,6 +5,7 @@
 #include <cstring>
 #include <stdint.h>
 #include <iostream>
+#include <vector>
 
 /* Sigma round constants */
 __device__ __constant__ uint8_t SIGMA[12][16] = 
@@ -588,10 +589,10 @@ void argon2idTRTLGPU(
     index += saltSize;
 
     std::memcpy(&initialInput[index], &secretSize, sizeof(secretSize));
-    index += secretSize;
+    index += sizeof(secretSize);
 
     std::memcpy(&initialInput[index], &dataSize, sizeof(dataSize));
-    index += dataSize;
+    index += sizeof(dataSize);
 
     uint8_t initialHash[INITIAL_HASH_SIZE] = {};
 
@@ -754,17 +755,9 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort =
     }
 }
 
-void hash()
+std::vector<uint8_t> nvidiaHash(const std::vector<uint8_t> &input, const std::vector<uint8_t> &saltInput)
 {
-    const uint8_t chukwaInput[] = {
-        1, 0, 251, 142, 138, 200, 5, 137, 147, 35, 55, 27, 183, 144, 219, 25,
-        33, 138, 253, 141, 184, 227, 117, 93, 139, 144, 243, 155, 61, 85, 6,
-        169, 171, 206, 79, 169, 18, 36, 69, 0, 0, 0, 0, 238, 129, 70, 212, 159,
-        169, 62, 231, 36, 222, 181, 125, 18, 203, 198, 198, 243, 185, 36, 217,
-        70, 18, 124, 122, 151, 65, 143, 147, 72, 130, 143, 15, 2
-    };
-
-    size_t messageLength = sizeof(chukwaInput) / sizeof(*chukwaInput);
+    size_t messageLength = input.size();
 
     uint8_t *message;
     uint8_t *salt;
@@ -778,8 +771,8 @@ void hash()
     ERROR_CHECK(cudaMalloc((void **)&grid, TRTL_SCRATCHPAD_SIZE * BLOCK_SIZE * sizeof(uint64_t)));
 
     /* Initialize message and salt on the GPU from the CPU */
-    ERROR_CHECK(cudaMemcpy(message, &chukwaInput[0], messageLength, cudaMemcpyHostToDevice));
-    ERROR_CHECK(cudaMemcpy(salt, &chukwaInput[0], TRTL_SALT_LENGTH, cudaMemcpyHostToDevice));
+    ERROR_CHECK(cudaMemcpy(message, &input[0], messageLength, cudaMemcpyHostToDevice));
+    ERROR_CHECK(cudaMemcpy(salt, &saltInput[0], TRTL_SALT_LENGTH, cudaMemcpyHostToDevice));
 
     /* Zero out grid */
     ERROR_CHECK(cudaMemset(grid, 0, TRTL_SCRATCHPAD_SIZE * BLOCK_SIZE * sizeof(uint64_t)));
@@ -794,20 +787,15 @@ void hash()
 
     std::cout << "Kernel finished running" << std::endl;
 
-    uint8_t hostResult[RESULT_HASH_SIZE];
+    std::vector<uint8_t> hostResult(RESULT_HASH_SIZE);
 
     /* Copy the result from GPU memory to CPU memory */
-    ERROR_CHECK(cudaMemcpy(&hostResult, result, RESULT_HASH_SIZE, cudaMemcpyDeviceToHost));
-
-    char output[65];
-
-    byteArrayToHexString(hostResult, output);
-
-    output[64] = '\0';
-
-    std::cout << output << std::endl;
+    ERROR_CHECK(cudaMemcpy(&hostResult[0], result, RESULT_HASH_SIZE, cudaMemcpyDeviceToHost));
 
     cudaFree(message);
     cudaFree(salt);
     cudaFree(result);
+    cudaFree(grid);
+
+    return hostResult;
 }
