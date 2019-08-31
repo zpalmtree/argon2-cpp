@@ -190,10 +190,11 @@ const size_t BLOCK_SIZE_BYTES = 128 * 8;
 const size_t SYNC_POINTS = 4;
 const size_t HASH_SIZE = 64;
 const size_t INITIAL_HASH_SIZE = 72;
+const size_t RESULT_HASH_SIZE = 32;
 
 const uint32_t TRTL_MEMORY = 512;
 const uint32_t TRTL_SCRATCHPAD_SIZE = TRTL_MEMORY;
-const uint32_t TRTL_LANES = TRTL_MEMORY;
+const uint32_t TRTL_LANES = TRTL_SCRATCHPAD_SIZE;
 const uint32_t TRTL_SALT_LENGTH = 16;
 const uint32_t TRTL_ITERATIONS = 3;
 const uint32_t TRTL_SEGMENTS = TRTL_LANES / SYNC_POINTS;
@@ -354,14 +355,14 @@ void blamkaGeneric(
 
 __device__ __forceinline__
 void processBlock(
-    uint64_t nextBlock[128],
-    uint64_t refBlock[128],
-    uint64_t prevBlock[128],
+    uint64_t *nextBlock,
+    uint64_t *refBlock,
+    uint64_t *prevBlock,
     const bool doXor = false)
 {
     uint64_t state[128];
 
-    std::memcpy(&state[0], &refBlock[0], BLOCK_SIZE_BYTES);
+    std::memcpy(&state[0], refBlock, BLOCK_SIZE_BYTES);
 
     for (int i = 0; i < BLOCK_SIZE; i++)
     {
@@ -442,7 +443,14 @@ void blake2bHash(
 
     /* Prepend the length of the output hash length to the input data */
     std::memcpy(data, &outputLength, sizeof(outputLength));
-    std::memcpy(data + sizeof(outputLength), input, inputLength);
+
+    size_t offset = sizeof(outputLength);
+
+    /* std::memcpy(data + sizeof(outputLength), input, inputLength); */
+    for (int i = offset; i < dataLength; i++)
+    {
+        data[i] = input[i - offset];
+    }
 
     /* Output length is less than 64 bytes, just hash it with blake and we're done */
     if (outputLength < HASH_SIZE)
@@ -459,13 +467,13 @@ void blake2bHash(
     uint8_t buffer[HASH_SIZE];
 
     /* Hash with blake into buffer */
-    blake2bGPU(buffer, data, dataLength, HASH_SIZE);
+    blake2bGPU(&buffer[0], data, dataLength, HASH_SIZE);
 
     /* Free memory */
     free(data);
 
     /* Copy the first 32 bytes to output */
-    std::memcpy(out, buffer, 32);
+    std::memcpy(out, &buffer[0], 32);
 
     out += 32;
     outputLength -= 32;
@@ -473,11 +481,11 @@ void blake2bHash(
     while (outputLength > HASH_SIZE)
     {
         /* Repeatedly hash buffer data */
-        blake2bGPU(buffer, buffer, HASH_SIZE, HASH_SIZE);
+        blake2bGPU(&buffer[0], &buffer[0], HASH_SIZE, HASH_SIZE);
 
         /* And keep copying the first 32 bytes from buffer into the next 32
            bytes of output */
-        std::memcpy(out, buffer, 32);
+        std::memcpy(out, &buffer[0], 32);
 
         /* And repeat with the next 32 bytes */
         out += 32;
@@ -524,12 +532,12 @@ void argon2idTRTLGPU(
     uint8_t *message,
     size_t messageLength, 
     uint8_t *salt,
+    uint64_t *grid,
     uint8_t *result)
 {
-    uint64_t grid[TRTL_SCRATCHPAD_SIZE][BLOCK_SIZE] = {};
-
+    /* STEP 1: INITIAL HASH */
     const uint32_t threads = 1;
-    const uint32_t keyLen = 32;
+    const uint32_t keyLen = RESULT_HASH_SIZE;
     const uint32_t memory = TRTL_MEMORY;
     const uint32_t time = TRTL_ITERATIONS;
     const uint32_t version = 19; /* Argon version */
@@ -547,14 +555,43 @@ void argon2idTRTLGPU(
 
     uint8_t *initialInput = static_cast<uint8_t *>(malloc(inputSize));
 
-    std::memcpy(&initialInput[0], &threads, sizeof(threads));
-    std::memcpy(&initialInput[4], &keyLen, sizeof(keyLen));
-    std::memcpy(&initialInput[8], &memory, sizeof(memory));
-    std::memcpy(&initialInput[12], &time, sizeof(time));
-    std::memcpy(&initialInput[16], &version, sizeof(version));
-    std::memcpy(&initialInput[20], &mode, sizeof(mode));
-    std::memcpy(&initialInput[24], &message, messageSize * sizeof(uint8_t));
-    std::memcpy(&initialInput[24 + messageSize], &salt, saltSize * sizeof(uint8_t));
+    size_t index = 0;
+
+    std::memcpy(&initialInput[index], &threads, sizeof(threads));
+    index += sizeof(threads);
+
+    std::memcpy(&initialInput[index], &keyLen, sizeof(keyLen));
+    index += sizeof(keyLen);
+
+    std::memcpy(&initialInput[index], &memory, sizeof(memory));
+    index += sizeof(memory);
+
+    std::memcpy(&initialInput[index], &time, sizeof(time));
+    index += sizeof(time);
+
+    std::memcpy(&initialInput[index], &version, sizeof(version));
+    index += sizeof(version);
+
+    std::memcpy(&initialInput[index], &mode, sizeof(mode));
+    index += sizeof(mode);
+
+    std::memcpy(&initialInput[index], &messageSize, sizeof(messageSize));
+    index += sizeof(messageSize);
+
+    std::memcpy(&initialInput[index], message, messageSize);
+    index += messageSize;
+
+    std::memcpy(&initialInput[index], &saltSize, sizeof(saltSize));
+    index += sizeof(saltSize);
+
+    std::memcpy(&initialInput[index], salt, saltSize);
+    index += saltSize;
+
+    std::memcpy(&initialInput[index], &secretSize, sizeof(secretSize));
+    index += secretSize;
+
+    std::memcpy(&initialInput[index], &dataSize, sizeof(dataSize));
+    index += dataSize;
 
     uint8_t initialHash[INITIAL_HASH_SIZE] = {};
 
@@ -562,29 +599,30 @@ void argon2idTRTLGPU(
 
     free(initialInput);
 
+    /* STEP 2: INIT BLOCKS */
     uint8_t block0[BLOCK_SIZE_BYTES];
 
     blake2bHash(block0, initialHash, BLOCK_SIZE_BYTES, INITIAL_HASH_SIZE);
 
     for (int i = 0; i < BLOCK_SIZE; i++)
     {
-        std::memcpy(&grid[0][i], &block0[i * 8], sizeof(uint64_t));
+        /* grid[0][i] */
+        grid[i] = *reinterpret_cast<uint64_t *>(&block0[i * 8]);
     }
 
     initialHash[64] = 1;
 
     blake2bHash(block0, initialHash, BLOCK_SIZE_BYTES, INITIAL_HASH_SIZE);
 
-    for (int i = 0; i < BLOCK_SIZE_BYTES; i++)
+    for (int i = 0; i < BLOCK_SIZE; i++)
     {
-        std::memcpy(&grid[1][i], &block0[i * 8], sizeof(uint64_t));
+        const size_t index = (1 * BLOCK_SIZE) + i;
+
+        /* grid[1][i] */
+        grid[index] = *reinterpret_cast<uint64_t *>(&block0[i * 8]);
     }
 
-    /* Write output back to result */
-    for (int i = 0; i < 32; i++)
-    {
-        result[i] = initialHash[i];
-    }
+    /* STEP 3: PROCESS BLOCKS */
 
     /* Note: Since we only use one thread/lane for TRTL, I have replaced lane
        with zero where appropriate */
@@ -645,12 +683,18 @@ void argon2idTRTLGPU(
                 }
                 else
                 {
-                    random = grid[prev][0];
+                    /* grid[prev][0] */
+                    random = grid[prev * BLOCK_SIZE];
                 }
 
                 uint32_t newOffset = indexAlpha(random, iteration, slice, index);
 
-                processBlock(grid[offset], grid[prev], grid[newOffset], true);
+                processBlock(
+                    &grid[offset * BLOCK_SIZE],
+                    &grid[prev * BLOCK_SIZE],
+                    &grid[newOffset * BLOCK_SIZE],
+                    true
+                );
 
                 index++;
                 offset++;
@@ -658,17 +702,16 @@ void argon2idTRTLGPU(
         }
     }
     
+    /* STEP 4: EXTRACT KEY */
     for (uint32_t i = 0; i < BLOCK_SIZE; i++)
     {
-        grid[TRTL_MEMORY][i] ^= grid[TRTL_LANES - 1][i];
+        const size_t index = ((TRTL_SCRATCHPAD_SIZE - 1) * BLOCK_SIZE) + i;
+
+        /* grid[TRTL_SCRATCHPAD_SIZE][i] */
+        std::memcpy(&block0[i * 8], &grid[index], sizeof(uint64_t));
     }
 
-    for (uint32_t i = 0; i < BLOCK_SIZE; i++)
-    {
-        std::memcpy(&block0[i * 8], &grid[TRTL_SCRATCHPAD_SIZE - 1][i], sizeof(uint64_t));
-    }
-
-    blake2bHash(result, block0, 32, BLOCK_SIZE_BYTES);
+    blake2bHash(result, block0, RESULT_HASH_SIZE, BLOCK_SIZE_BYTES);
 }
 
 void __global__
@@ -676,9 +719,10 @@ hashKernel(
     uint8_t *message,
     size_t messageLength, 
     uint8_t *salt,
+    uint64_t *grid,
     uint8_t *result)
 {
-    argon2idTRTLGPU(message, messageLength, salt, result);
+    argon2idTRTLGPU(message, messageLength, salt, grid, result);
 }
 
 /* input = 32 char byte array.
@@ -687,7 +731,7 @@ void byteArrayToHexString(const uint8_t *input, char *output)
 {
     char hexval[16] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
 
-    for (int i = 0; i < 32; i++)
+    for (int i = 0; i < RESULT_HASH_SIZE; i++)
     {
         output[i * 2] = hexval[((input[i] >> 4) & 0xF)];
         output[(i * 2) + 1] = hexval[(input[i]) & 0x0F];
@@ -701,7 +745,7 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort =
     {
         std::string errorStr = cudaGetErrorString(code);
 
-        std::cout << "CUDA Error " << errorStr << " at " << file << ", Line " << line << std::endl;
+        std::cout << "CUDA Error: " << errorStr << " at " << file << ", Line " << line << std::endl;
 
         if (abort)
         {
@@ -725,30 +769,35 @@ void hash()
     uint8_t *message;
     uint8_t *salt;
     uint8_t *result;
+    uint64_t *grid;
 
-    /* Allocate message, salt, and result on GPU memory */
-    ERROR_CHECK(cudaMalloc((void **)&message, messageLength * sizeof(uint8_t)));
-    ERROR_CHECK(cudaMalloc((void **)&salt, 16 * sizeof(uint8_t)));
-    ERROR_CHECK(cudaMalloc((void **)&result, 32 * sizeof(uint8_t)));
+    /* Allocate message, salt, result, and grid on GPU memory */
+    ERROR_CHECK(cudaMalloc((void **)&message, messageLength));
+    ERROR_CHECK(cudaMalloc((void **)&salt, TRTL_SALT_LENGTH));
+    ERROR_CHECK(cudaMalloc((void **)&result, RESULT_HASH_SIZE));
+    ERROR_CHECK(cudaMalloc((void **)&grid, TRTL_SCRATCHPAD_SIZE * BLOCK_SIZE * sizeof(uint64_t)));
 
     /* Initialize message and salt on the GPU from the CPU */
-    ERROR_CHECK(cudaMemcpy(message, &chukwaInput, messageLength, cudaMemcpyHostToDevice));
-    ERROR_CHECK(cudaMemcpy(salt, &chukwaInput, 16, cudaMemcpyHostToDevice));
+    ERROR_CHECK(cudaMemcpy(message, &chukwaInput[0], messageLength, cudaMemcpyHostToDevice));
+    ERROR_CHECK(cudaMemcpy(salt, &chukwaInput[0], TRTL_SALT_LENGTH, cudaMemcpyHostToDevice));
+
+    /* Zero out grid */
+    ERROR_CHECK(cudaMemset(grid, 0, TRTL_SCRATCHPAD_SIZE * BLOCK_SIZE * sizeof(uint64_t)));
 
     std::cout << "Launching kernel" << std::endl;
 
     /* Launch the kernel */
-    hashKernel<<<1, 1>>>(message, messageLength, salt, result);
+    hashKernel<<<1, 1>>>(message, messageLength, salt, grid, result);
 
     ERROR_CHECK(cudaPeekAtLastError());
     ERROR_CHECK(cudaDeviceSynchronize());
 
     std::cout << "Kernel finished running" << std::endl;
 
-    uint8_t hostResult[32];
+    uint8_t hostResult[RESULT_HASH_SIZE];
 
     /* Copy the result from GPU memory to CPU memory */
-    ERROR_CHECK(cudaMemcpy(&hostResult, result, 32, cudaMemcpyDeviceToHost));
+    ERROR_CHECK(cudaMemcpy(&hostResult, result, RESULT_HASH_SIZE, cudaMemcpyDeviceToHost));
 
     char output[65];
 
