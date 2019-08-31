@@ -186,6 +186,7 @@ void blake2bGPU(
 }
 
 const size_t BLOCK_SIZE = 128;
+const size_t BLOCK_SIZE_BYTES = 128 * 8;
 const size_t SYNC_POINTS = 4;
 const size_t HASH_SIZE = 64;
 const size_t INITIAL_HASH_SIZE = 72;
@@ -195,6 +196,328 @@ const uint32_t TRTL_SCRATCHPAD_SIZE = TRTL_MEMORY;
 const uint32_t TRTL_LANES = TRTL_MEMORY;
 const uint32_t TRTL_SALT_LENGTH = 16;
 const uint32_t TRTL_ITERATIONS = 3;
+const uint32_t TRTL_SEGMENTS = TRTL_LANES / SYNC_POINTS;
+
+__device__ __forceinline__
+void blamkaGeneric(
+    uint64_t &t00,
+    uint64_t &t01,
+    uint64_t &t02,
+    uint64_t &t03,
+    uint64_t &t04,
+    uint64_t &t05,
+    uint64_t &t06,
+    uint64_t &t07,
+    uint64_t &t08,
+    uint64_t &t09,
+    uint64_t &t10,
+    uint64_t &t11,
+    uint64_t &t12,
+    uint64_t &t13,
+    uint64_t &t14,
+    uint64_t &t15) {
+
+    uint64_t v00 = t00, v01 = t01, v02 = t02, v03 = t03;
+    uint64_t v04 = t04, v05 = t05, v06 = t06, v07 = t07;
+    uint64_t v08 = t08, v09 = t09, v10 = t10, v11 = t11;
+    uint64_t v12 = t12, v13 = t13, v14 = t14, v15 = t15;
+
+    v00 += v04 + 2*static_cast<uint64_t>(static_cast<uint32_t>(v00))*static_cast<uint64_t>(static_cast<uint32_t>(v04));
+    v12 ^= v00;
+    v12 = v12>>32 | v12<<32;
+    v08 += v12 + 2*static_cast<uint64_t>(static_cast<uint32_t>(v08))*static_cast<uint64_t>(static_cast<uint32_t>(v12));
+    v04 ^= v08;
+    v04 = v04>>24 | v04<<40;
+
+    v00 += v04 + 2*static_cast<uint64_t>(static_cast<uint32_t>(v00))*static_cast<uint64_t>(static_cast<uint32_t>(v04));
+    v12 ^= v00;
+    v12 = v12>>16 | v12<<48;
+    v08 += v12 + 2*static_cast<uint64_t>(static_cast<uint32_t>(v08))*static_cast<uint64_t>(static_cast<uint32_t>(v12));
+    v04 ^= v08;
+    v04 = v04>>63 | v04<<1;
+
+    v01 += v05 + 2*static_cast<uint64_t>(static_cast<uint32_t>(v01))*static_cast<uint64_t>(static_cast<uint32_t>(v05));
+    v13 ^= v01;
+    v13 = v13>>32 | v13<<32;
+    v09 += v13 + 2*static_cast<uint64_t>(static_cast<uint32_t>(v09))*static_cast<uint64_t>(static_cast<uint32_t>(v13));
+    v05 ^= v09;
+    v05 = v05>>24 | v05<<40;
+
+    v01 += v05 + 2*static_cast<uint64_t>(static_cast<uint32_t>(v01))*static_cast<uint64_t>(static_cast<uint32_t>(v05));
+    v13 ^= v01;
+    v13 = v13>>16 | v13<<48;
+    v09 += v13 + 2*static_cast<uint64_t>(static_cast<uint32_t>(v09))*static_cast<uint64_t>(static_cast<uint32_t>(v13));
+    v05 ^= v09;
+    v05 = v05>>63 | v05<<1;
+
+    v02 += v06 + 2*static_cast<uint64_t>(static_cast<uint32_t>(v02))*static_cast<uint64_t>(static_cast<uint32_t>(v06));
+    v14 ^= v02;
+    v14 = v14>>32 | v14<<32;
+    v10 += v14 + 2*static_cast<uint64_t>(static_cast<uint32_t>(v10))*static_cast<uint64_t>(static_cast<uint32_t>(v14));
+    v06 ^= v10;
+    v06 = v06>>24 | v06<<40;
+
+    v02 += v06 + 2*static_cast<uint64_t>(static_cast<uint32_t>(v02))*static_cast<uint64_t>(static_cast<uint32_t>(v06));
+    v14 ^= v02;
+    v14 = v14>>16 | v14<<48;
+    v10 += v14 + 2*static_cast<uint64_t>(static_cast<uint32_t>(v10))*static_cast<uint64_t>(static_cast<uint32_t>(v14));
+    v06 ^= v10;
+    v06 = v06>>63 | v06<<1;
+
+    v03 += v07 + 2*static_cast<uint64_t>(static_cast<uint32_t>(v03))*static_cast<uint64_t>(static_cast<uint32_t>(v07));
+    v15 ^= v03;
+    v15 = v15>>32 | v15<<32;
+    v11 += v15 + 2*static_cast<uint64_t>(static_cast<uint32_t>(v11))*static_cast<uint64_t>(static_cast<uint32_t>(v15));
+    v07 ^= v11;
+    v07 = v07>>24 | v07<<40;
+
+    v03 += v07 + 2*static_cast<uint64_t>(static_cast<uint32_t>(v03))*static_cast<uint64_t>(static_cast<uint32_t>(v07));
+    v15 ^= v03;
+    v15 = v15>>16 | v15<<48;
+    v11 += v15 + 2*static_cast<uint64_t>(static_cast<uint32_t>(v11))*static_cast<uint64_t>(static_cast<uint32_t>(v15));
+    v07 ^= v11;
+    v07 = v07>>63 | v07<<1;
+
+    v00 += v05 + 2*static_cast<uint64_t>(static_cast<uint32_t>(v00))*static_cast<uint64_t>(static_cast<uint32_t>(v05));
+    v15 ^= v00;
+    v15 = v15>>32 | v15<<32;
+    v10 += v15 + 2*static_cast<uint64_t>(static_cast<uint32_t>(v10))*static_cast<uint64_t>(static_cast<uint32_t>(v15));
+    v05 ^= v10;
+    v05 = v05>>24 | v05<<40;
+
+    v00 += v05 + 2*static_cast<uint64_t>(static_cast<uint32_t>(v00))*static_cast<uint64_t>(static_cast<uint32_t>(v05));
+    v15 ^= v00;
+    v15 = v15>>16 | v15<<48;
+    v10 += v15 + 2*static_cast<uint64_t>(static_cast<uint32_t>(v10))*static_cast<uint64_t>(static_cast<uint32_t>(v15));
+    v05 ^= v10;
+    v05 = v05>>63 | v05<<1;
+
+    v01 += v06 + 2*static_cast<uint64_t>(static_cast<uint32_t>(v01))*static_cast<uint64_t>(static_cast<uint32_t>(v06));
+    v12 ^= v01;
+    v12 = v12>>32 | v12<<32;
+    v11 += v12 + 2*static_cast<uint64_t>(static_cast<uint32_t>(v11))*static_cast<uint64_t>(static_cast<uint32_t>(v12));
+    v06 ^= v11;
+    v06 = v06>>24 | v06<<40;
+
+    v01 += v06 + 2*static_cast<uint64_t>(static_cast<uint32_t>(v01))*static_cast<uint64_t>(static_cast<uint32_t>(v06));
+    v12 ^= v01;
+    v12 = v12>>16 | v12<<48;
+    v11 += v12 + 2*static_cast<uint64_t>(static_cast<uint32_t>(v11))*static_cast<uint64_t>(static_cast<uint32_t>(v12));
+    v06 ^= v11;
+    v06 = v06>>63 | v06<<1;
+
+    v02 += v07 + 2*static_cast<uint64_t>(static_cast<uint32_t>(v02))*static_cast<uint64_t>(static_cast<uint32_t>(v07));
+    v13 ^= v02;
+    v13 = v13>>32 | v13<<32;
+    v08 += v13 + 2*static_cast<uint64_t>(static_cast<uint32_t>(v08))*static_cast<uint64_t>(static_cast<uint32_t>(v13));
+    v07 ^= v08;
+    v07 = v07>>24 | v07<<40;
+
+    v02 += v07 + 2*static_cast<uint64_t>(static_cast<uint32_t>(v02))*static_cast<uint64_t>(static_cast<uint32_t>(v07));
+    v13 ^= v02;
+    v13 = v13>>16 | v13<<48;
+    v08 += v13 + 2*static_cast<uint64_t>(static_cast<uint32_t>(v08))*static_cast<uint64_t>(static_cast<uint32_t>(v13));
+    v07 ^= v08;
+    v07 = v07>>63 | v07<<1;
+
+    v03 += v04 + 2*static_cast<uint64_t>(static_cast<uint32_t>(v03))*static_cast<uint64_t>(static_cast<uint32_t>(v04));
+    v14 ^= v03;
+    v14 = v14>>32 | v14<<32;
+    v09 += v14 + 2*static_cast<uint64_t>(static_cast<uint32_t>(v09))*static_cast<uint64_t>(static_cast<uint32_t>(v14));
+    v04 ^= v09;
+    v04 = v04>>24 | v04<<40;
+
+    v03 += v04 + 2*static_cast<uint64_t>(static_cast<uint32_t>(v03))*static_cast<uint64_t>(static_cast<uint32_t>(v04));
+    v14 ^= v03;
+    v14 = v14>>16 | v14<<48;
+    v09 += v14 + 2*static_cast<uint64_t>(static_cast<uint32_t>(v09))*static_cast<uint64_t>(static_cast<uint32_t>(v14));
+    v04 ^= v09;
+    v04 = v04>>63 | v04<<1;
+
+    t00 = v00;
+    t01 = v01;
+    t02 = v02;
+    t03 = v03;
+    t04 = v04;
+    t05 = v05;
+    t06 = v06;
+    t07 = v07;
+    t08 = v08;
+    t09 = v09;
+    t10 = v10;
+    t11 = v11;
+    t12 = v12;
+    t13 = v13;
+    t14 = v14;
+    t15 = v15;
+}
+
+__device__ __forceinline__
+void processBlock(
+    uint64_t nextBlock[128],
+    uint64_t refBlock[128],
+    uint64_t prevBlock[128],
+    const bool doXor = false)
+{
+    uint64_t state[128];
+
+    std::memcpy(&state[0], &refBlock[0], BLOCK_SIZE_BYTES);
+
+    for (int i = 0; i < BLOCK_SIZE; i++)
+    {
+        state[i] ^= prevBlock[i];
+    }
+
+    for (int i = 0; i < BLOCK_SIZE; i += 16)
+    {
+        blamkaGeneric(
+            state[i + 0],
+            state[i + 1],
+            state[i + 2],
+            state[i + 3],
+            state[i + 4],
+            state[i + 5],
+            state[i + 6],
+            state[i + 7],
+            state[i + 8],
+            state[i + 9],
+            state[i + 10],
+            state[i + 11],
+            state[i + 12],
+            state[i + 13],
+            state[i + 14],
+            state[i + 15]
+        );
+    }
+
+    for (int i = 0; i < BLOCK_SIZE / 8; i += 2)
+    {
+        blamkaGeneric(
+            state[0 + i + 0],
+            state[0 + i + 1],
+            state[16 + i + 0],
+            state[16 + i + 1],
+            state[32 + i + 0],
+            state[32 + i + 1],
+            state[48 + i + 0],
+            state[48 + i + 1],
+            state[64 + i + 0],
+            state[64 + i + 1],
+            state[80 + i + 0],
+            state[80 + i + 1],
+            state[96 + i + 0],
+            state[96 + i + 1],
+            state[112 + i + 0],
+            state[112 + i + 1]
+        );
+    }
+
+    if (doXor)
+    {
+        for (int i = 0; i < BLOCK_SIZE; i++)
+        {
+            nextBlock[i] ^= refBlock[i] ^ prevBlock[i] ^ state[i];
+        }
+    }
+    else
+    {
+        for (int i = 0; i < BLOCK_SIZE; i++)
+        {
+            nextBlock[i] = refBlock[i] ^ prevBlock[i] ^ state[i];
+        }
+    }
+}
+
+__device__ __forceinline__
+void blake2bHash(
+    uint8_t *out,
+    uint8_t *input,
+    uint32_t outputLength,
+    uint32_t inputLength)
+{
+    size_t dataLength = sizeof(outputLength) + inputLength;
+
+    /* Enough data for the output hash length and the input data */
+    uint8_t *data = static_cast<uint8_t *>(malloc(dataLength));
+
+    /* Prepend the length of the output hash length to the input data */
+    std::memcpy(data, &outputLength, sizeof(outputLength));
+    std::memcpy(data + sizeof(outputLength), input, inputLength);
+
+    /* Output length is less than 64 bytes, just hash it with blake and we're done */
+    if (outputLength < HASH_SIZE)
+    {
+        blake2bGPU(out, data, dataLength, outputLength);
+
+        /* Free memory */
+        free(data);
+
+        return;
+    }
+
+    /* Else make a HASH_SIZE buffer */
+    uint8_t buffer[HASH_SIZE];
+
+    /* Hash with blake into buffer */
+    blake2bGPU(buffer, data, dataLength, HASH_SIZE);
+
+    /* Free memory */
+    free(data);
+
+    /* Copy the first 32 bytes to output */
+    std::memcpy(out, buffer, 32);
+
+    out += 32;
+    outputLength -= 32;
+
+    while (outputLength > HASH_SIZE)
+    {
+        /* Repeatedly hash buffer data */
+        blake2bGPU(buffer, buffer, HASH_SIZE, HASH_SIZE);
+
+        /* And keep copying the first 32 bytes from buffer into the next 32
+           bytes of output */
+        std::memcpy(out, buffer, 32);
+
+        /* And repeat with the next 32 bytes */
+        out += 32;
+        outputLength -= 32;
+    }
+
+    if (outputLength % HASH_SIZE > 0)
+    {
+        uint32_t r = ((outputLength + 31) / 32) - 2;
+        blake2bGPU(out, buffer, HASH_SIZE, outputLength - 32 * r);
+    }
+    else
+    {
+        blake2bGPU(out, buffer, HASH_SIZE, HASH_SIZE);
+    }
+}
+
+__device__ __forceinline__
+uint32_t indexAlpha(
+    uint64_t random,
+    uint32_t iteration,
+    uint32_t slice,
+    uint32_t index)
+{
+    uint32_t m = (3 * TRTL_SEGMENTS) + index - 1; 
+    uint32_t s = ((slice + 1) % SYNC_POINTS) * TRTL_SEGMENTS;
+
+    if (iteration == 0)
+    {
+        m = (slice * TRTL_SEGMENTS) + index - 1;
+        s = 0;
+    }
+
+    uint64_t p = random & 0xFFFFFFFF;
+
+    p = (p * p) >> 32;
+    p = (p * m) >> 32;
+
+    return static_cast<uint32_t>((s + m - (p + 1)) % static_cast<uint64_t>(TRTL_LANES));
+}
 
 __device__
 void argon2idTRTLGPU(
@@ -222,7 +545,7 @@ void argon2idTRTLGPU(
         + messageSize + sizeof(saltSize) + saltSize + sizeof(secretSize) + secretSize
         + sizeof(dataSize) + dataSize;
 
-    uint8_t *initialInput = (uint8_t *)malloc(inputSize);
+    uint8_t *initialInput = static_cast<uint8_t *>(malloc(inputSize));
 
     std::memcpy(&initialInput[0], &threads, sizeof(threads));
     std::memcpy(&initialInput[4], &keyLen, sizeof(keyLen));
@@ -233,16 +556,119 @@ void argon2idTRTLGPU(
     std::memcpy(&initialInput[24], &message, messageSize * sizeof(uint8_t));
     std::memcpy(&initialInput[24 + messageSize], &salt, saltSize * sizeof(uint8_t));
 
-    uint8_t initialHash[INITIAL_HASH_SIZE];
+    uint8_t initialHash[INITIAL_HASH_SIZE] = {};
 
     blake2bGPU(initialHash, initialInput, inputSize, HASH_SIZE);
 
     free(initialInput);
 
+    uint8_t block0[BLOCK_SIZE_BYTES];
+
+    blake2bHash(block0, initialHash, BLOCK_SIZE_BYTES, INITIAL_HASH_SIZE);
+
+    for (int i = 0; i < BLOCK_SIZE; i++)
+    {
+        std::memcpy(&grid[0][i], &block0[i * 8], sizeof(uint64_t));
+    }
+
+    initialHash[64] = 1;
+
+    blake2bHash(block0, initialHash, BLOCK_SIZE_BYTES, INITIAL_HASH_SIZE);
+
+    for (int i = 0; i < BLOCK_SIZE_BYTES; i++)
+    {
+        std::memcpy(&grid[1][i], &block0[i * 8], sizeof(uint64_t));
+    }
+
+    /* Write output back to result */
     for (int i = 0; i < 32; i++)
     {
         result[i] = initialHash[i];
     }
+
+    /* Note: Since we only use one thread/lane for TRTL, I have replaced lane
+       with zero where appropriate */
+    for (int iteration = 0; iteration < TRTL_ITERATIONS; iteration++)
+    {
+        for (int slice = 0; slice < SYNC_POINTS; slice++)
+        {
+            uint64_t addresses[128] = {};
+            uint64_t in[128] = {};
+            uint64_t zero[128] = {};
+
+            const bool modificationI = iteration == 0 && slice < SYNC_POINTS / 2;
+
+            if (modificationI)
+            {
+                in[0] = iteration;
+                in[2] = slice;
+                in[3] = TRTL_SCRATCHPAD_SIZE;
+                in[4] = TRTL_ITERATIONS;
+                in[5] = 2; /* Argon2id */
+            }
+
+            uint32_t index = 0;
+
+            if (iteration == 0 && slice == 0)
+            {
+                index = 2;
+                in[6]++;
+                processBlock(addresses, in, zero);
+                processBlock(addresses, addresses, zero);
+            }
+
+            uint32_t offset = slice * TRTL_SEGMENTS + index;
+
+            uint64_t random;
+
+            while (index < TRTL_SEGMENTS)
+            {
+                uint32_t prev = offset - 1;
+
+                if (index == 0 && slice == 0)
+                {
+                    prev += TRTL_LANES;
+                }
+
+                if (modificationI)
+                {
+                    const uint32_t addressIndex = index % BLOCK_SIZE;
+
+                    if (addressIndex == 0)
+                    {
+                        in[6]++;
+                        processBlock(addresses, in, zero);
+                        processBlock(addresses, addresses, zero);
+                    }
+
+                    random = addresses[addressIndex];
+                }
+                else
+                {
+                    random = grid[prev][0];
+                }
+
+                uint32_t newOffset = indexAlpha(random, iteration, slice, index);
+
+                processBlock(grid[offset], grid[prev], grid[newOffset], true);
+
+                index++;
+                offset++;
+            }
+        }
+    }
+    
+    for (uint32_t i = 0; i < BLOCK_SIZE; i++)
+    {
+        grid[TRTL_MEMORY][i] ^= grid[TRTL_LANES - 1][i];
+    }
+
+    for (uint32_t i = 0; i < BLOCK_SIZE; i++)
+    {
+        std::memcpy(&block0[i * 8], &grid[TRTL_SCRATCHPAD_SIZE - 1][i], sizeof(uint64_t));
+    }
+
+    blake2bHash(result, block0, 32, BLOCK_SIZE_BYTES);
 }
 
 void __global__
