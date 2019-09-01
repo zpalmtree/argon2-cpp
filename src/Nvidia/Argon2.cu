@@ -199,6 +199,7 @@ const uint32_t TRTL_LANES = TRTL_SCRATCHPAD_SIZE;
 const uint32_t TRTL_SALT_LENGTH = 16;
 const uint32_t TRTL_ITERATIONS = 3;
 const uint32_t TRTL_SEGMENTS = TRTL_LANES / SYNC_POINTS;
+const uint32_t TRTL_CUDA_THREADS = 256;
 
 __device__ __forceinline__
 void blamkaGeneric(
@@ -531,10 +532,11 @@ uint32_t indexAlpha(
 __device__
 void argon2idTRTLGPU(
     uint8_t *message,
-    size_t messageLength, 
-    uint8_t *salt,
+    const size_t messageLength, 
+    const uint8_t *salt,
     uint64_t *grid,
-    uint8_t *result)
+    uint8_t *result,
+    const uint32_t ourNonce)
 {
     /* STEP 1: INITIAL HASH */
     const uint32_t threads = 1;
@@ -580,6 +582,8 @@ void argon2idTRTLGPU(
     index += sizeof(messageSize);
 
     std::memcpy(&initialInput[index], message, messageSize);
+    /* TODO: Nicehash style nonces (just alter offset + copy one less byte?) */
+    std::memcpy(&initialInput[index + 39], &ourNonce, sizeof(ourNonce));
     index += messageSize;
 
     std::memcpy(&initialInput[index], &saltSize, sizeof(saltSize));
@@ -720,10 +724,16 @@ hashKernel(
     uint8_t *message,
     size_t messageLength, 
     uint8_t *salt,
-    uint64_t *grid,
-    uint8_t *result)
+    uint64_t *grids,
+    uint8_t *results,
+    const uint32_t localNonce)
 {
-    argon2idTRTLGPU(message, messageLength, salt, grid, result);
+    uint64_t *grid = &grids[TRTL_SCRATCHPAD_SIZE * BLOCK_SIZE * threadIdx.x];
+    uint8_t *result = &results[32 * threadIdx.x];
+
+    const uint32_t ourNonce = localNonce + threadIdx.x;
+
+    argon2idTRTLGPU(message, messageLength, salt, grid, result, ourNonce);
 }
 
 /* input = 32 char byte array.
@@ -755,43 +765,71 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort =
     }
 }
 
-std::vector<uint8_t> nvidiaHash(const std::vector<uint8_t> &input, const std::vector<uint8_t> &saltInput)
+uint64_t *allocateScratchpads()
+{
+    uint64_t *grids;
+    ERROR_CHECK(cudaMalloc((void **)&grids, TRTL_SCRATCHPAD_SIZE * BLOCK_SIZE * TRTL_CUDA_THREADS * sizeof(uint64_t)));
+
+    return grids;
+}
+
+uint8_t *allocateResults()
+{
+    uint8_t *results;
+    ERROR_CHECK(cudaMalloc((void **)&results, RESULT_HASH_SIZE * TRTL_CUDA_THREADS));
+
+    return results;
+}
+
+void freeMemory(uint64_t *grids, uint8_t *results)
+{
+    ERROR_CHECK(cudaFree(grids));
+    ERROR_CHECK(cudaFree(results));
+}
+
+std::vector<uint8_t> nvidiaHash(
+    const std::vector<uint8_t> &input,
+    const std::vector<uint8_t> &saltInput,
+    const uint32_t memory,
+    const uint32_t iterations,
+    const uint32_t gpuIndex,
+    const uint32_t localNonce,
+    uint64_t *grid,
+    uint8_t *result)
 {
     size_t messageLength = input.size();
 
     uint8_t *message;
     uint8_t *salt;
-    uint8_t *result;
-    uint64_t *grid;
 
-    /* Allocate message, salt, result, and grid on GPU memory */
+    /* Allocate message and salt on GPU memory */
     ERROR_CHECK(cudaMalloc((void **)&message, messageLength));
     ERROR_CHECK(cudaMalloc((void **)&salt, TRTL_SALT_LENGTH));
-    ERROR_CHECK(cudaMalloc((void **)&result, RESULT_HASH_SIZE));
-    ERROR_CHECK(cudaMalloc((void **)&grid, TRTL_SCRATCHPAD_SIZE * BLOCK_SIZE * sizeof(uint64_t)));
 
     /* Initialize message and salt on the GPU from the CPU */
     ERROR_CHECK(cudaMemcpy(message, &input[0], messageLength, cudaMemcpyHostToDevice));
     ERROR_CHECK(cudaMemcpy(salt, &saltInput[0], TRTL_SALT_LENGTH, cudaMemcpyHostToDevice));
 
     /* Zero out grid */
-    ERROR_CHECK(cudaMemset(grid, 0, TRTL_SCRATCHPAD_SIZE * BLOCK_SIZE * sizeof(uint64_t)));
+    ERROR_CHECK(cudaMemset(grid, 0, TRTL_SCRATCHPAD_SIZE * BLOCK_SIZE * sizeof(uint64_t) * TRTL_CUDA_THREADS));
+
+    /* Set current device */
+    ERROR_CHECK(cudaSetDevice(gpuIndex));
 
     /* Launch the kernel */
-    hashKernel<<<1, 1>>>(message, messageLength, salt, grid, result);
+    hashKernel<<<1, TRTL_CUDA_THREADS>>>(message, messageLength, salt, grid, result, localNonce);
 
+    /* Wait for kernel */
     ERROR_CHECK(cudaPeekAtLastError());
     ERROR_CHECK(cudaDeviceSynchronize());
 
-    std::vector<uint8_t> hostResult(RESULT_HASH_SIZE);
+    std::vector<uint8_t> hostResults(RESULT_HASH_SIZE * TRTL_CUDA_THREADS);
 
     /* Copy the result from GPU memory to CPU memory */
-    ERROR_CHECK(cudaMemcpy(&hostResult[0], result, RESULT_HASH_SIZE, cudaMemcpyDeviceToHost));
+    ERROR_CHECK(cudaMemcpy(&hostResults[0], result, RESULT_HASH_SIZE * TRTL_CUDA_THREADS, cudaMemcpyDeviceToHost));
 
-    cudaFree(message);
-    cudaFree(salt);
-    cudaFree(result);
-    cudaFree(grid);
-
-    return hostResult;
+    ERROR_CHECK(cudaFree(message));
+    ERROR_CHECK(cudaFree(salt));
+    
+    return hostResults;
 }
