@@ -1,3 +1,5 @@
+include_directories("${CMAKE_CURRENT_SOURCE_DIR}")
+
 # Add the Argon2 directory to add that library
 add_subdirectory(Argon2)
 
