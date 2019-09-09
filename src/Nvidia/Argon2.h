@@ -18,6 +18,7 @@ const size_t BLAKE_THREADS_PER_BLOCK = 128;
 const size_t BLAKE_INITIAL_HASH_LENGTH = 76;
 
 const uint32_t THREADS_PER_LANE = 32;
+const size_t QWORDS_PER_THREAD = ARGON_QWORDS_IN_BLOCK / THREADS_PER_LANE;
 
 /* TODO: This stuff should be in a struct we pass in */
 const uint32_t TRTL_MEMORY = 512;

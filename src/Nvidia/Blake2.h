@@ -10,10 +10,11 @@
 
 __global__
 void initMemoryKernel(
-    block_g *memory,
-    uint64_t *blakeInput,
-    size_t blakeInputSize,
-    const uint32_t startNonce);
+    struct block_g *memory,
+    uint64_t *inseed,
+    uint32_t memory_cost,
+    uint32_t start_nonce,
+    size_t blakeInputSize);
 
 __global__
 void getNonceKernel(

@@ -19,20 +19,13 @@
 #define IV6 0x1f83d9abfb41bd6bUL
 #define IV7 0x5be0cd19137e2179UL
 
-__constant__ static const uint8_t sigma[12][16] =
+struct __attribute__((packed)) prehash_seed
 {
-    { 0,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12, 13, 14, 15 },
-    { 14, 10, 4,  8,  9,  15, 13, 6,  1,  12, 0,  2,  11, 7,  5,  3  },
-    { 11, 8,  12, 0,  5,  2,  15, 13, 10, 14, 3,  6,  7,  1,  9,  4  },
-    { 7,  9,  3,  1,  13, 12, 11, 14, 2,  6,  5,  10, 4,  0,  15, 8  },
-    { 9,  0,  5,  7,  2,  4,  10, 15, 14, 1,  11, 12, 6,  8,  3,  13 },
-    { 2,  12, 6,  10, 0,  11, 8,  3,  4,  13, 7,  5,  15, 14, 1,  9  },
-    { 12, 5,  1,  15, 14, 13, 4,  10, 0,  7,  6,  3,  9,  2,  8,  11 },
-    { 13, 11, 7,  14, 12, 1,  3,  9,  5,  0,  15, 4,  8,  6,  2,  10 },
-    { 6,  15, 14, 9,  11, 3,  0,  8,  12, 2,  13, 7,  1,  4,  10, 5  },
-    { 10, 2,  8,  4,  7,  6,  1,  5,  15, 11, 9,  14, 3,  12, 13, 0  },
-    { 0,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12, 13, 14, 15 },
-    { 14, 10, 4,  8,  9,  15, 13, 6,  1,  12, 0,  2,  11, 7,  5,  3  },
+    uint32_t hashlen;
+    uint64_t initial_hash[8];
+    uint32_t block;
+    uint32_t lane;
+    uint32_t padding[13];
 };
 
 __device__ __forceinline__
@@ -41,7 +34,6 @@ uint64_t rotr64(uint64_t x, uint32_t n)
     return (x >> n) | (x << (64 - n));
 }
 
-/* TODO __forceinline__ ? */
 __device__
 void blake2b_init(uint64_t *h, uint32_t hashlen)
 {
@@ -55,68 +47,23 @@ void blake2b_init(uint64_t *h, uint32_t hashlen)
     h[7] = IV7;
 }
 
-__device__ void g(uint64_t *a, uint64_t *b, uint64_t *c, uint64_t *d, uint64_t m1, uint64_t m2)
-{
-    asm("{"
-        ".reg .u64 s, x;"
-        ".reg .u32 l1, l2, h1, h2;"
-        // a = a + b + x
-        "add.u64 %0, %0, %1;"
-        "add.u64 %0, %0, %4;"
-        // d = rotr64(d ^ a, 32)
-        "xor.b64 x, %3, %0;"
-        "mov.b64 {h1, l1}, x;"
-        "mov.b64 %3, {l1, h1};"
-        // c = c + d
-        "add.u64 %2, %2, %3;"
-        // b = rotr64(b ^ c, 24)
-        "xor.b64 x, %1, %2;"
-        "mov.b64 {l1, h1}, x;"
-        "prmt.b32 l2, l1, h1, 0x6543;"
-        "prmt.b32 h2, l1, h1, 0x2107;"
-        "mov.b64 %1, {l2, h2};"
-        // a = a + b + y
-        "add.u64 %0, %0, %1;"
-        "add.u64 %0, %0, %5;"
-        // d = rotr64(d ^ a, 16);
-        "xor.b64 x, %3, %0;"
-        "mov.b64 {l1, h1}, x;"
-        "prmt.b32 l2, l1, h1, 0x5432;"
-        "prmt.b32 h2, l1, h1, 0x1076;"
-        "mov.b64 %3, {l2, h2};"
-        // c = c + d
-        "add.u64 %2, %2, %3;"
-        // b = rotr64(b ^ c, 63)
-        "xor.b64 x, %1, %2;"
-        "shl.b64 s, x, 1;"
-        "shr.b64 x, x, 63;"
-        "add.u64 %1, s, x;"
-        "}"
-        : "+l"(*a), "+l"(*b), "+l"(*c), "+l"(*d) : "l"(m1), "l"(m2)
-    );
-}
+#define G(a, b, c, d, x, y)             \
+    do                                  \
+    {                                   \
+        v[a] = v[a] + v[b] + m[x];      \
+        v[d] = rotr64(v[d] ^ v[a], 32); \
+        v[c] = v[c] + v[d];             \
+        v[b] = rotr64(v[b] ^ v[c], 24); \
+        v[a] = v[a] + v[b] + m[y];      \
+        v[d] = rotr64(v[d] ^ v[a], 16); \
+        v[c] = v[c] + v[d];             \
+        v[b] = rotr64(v[b] ^ v[c], 63); \
+    } while (0)
 
-#define G(i, a, b, c, d) (g(&v[a], &v[b], &v[c], &v[d], m[sigma[r][2 * i]], m[sigma[r][2 * i + 1]]))
-
-__device__ void blake2b_round(uint32_t r, uint64_t *v, uint64_t *m)
+__device__
+void blake2b_compress(uint64_t *h, uint64_t *m, uint32_t bytes_compressed, bool last_block)
 {
-    G(0, 0, 4, 8, 12);
-    G(1, 1, 5, 9, 13);
-    G(2, 2, 6, 10, 14);
-    G(3, 3, 7, 11, 15);
-    G(4, 0, 5, 10, 15);
-    G(5, 1, 6, 11, 12);
-    G(6, 2, 7, 8, 13);
-    G(7, 3, 4, 9, 14);
-}
-
-__device__ void blake2b_compress(
-    uint64_t *h,
-    uint64_t *m,
-    uint32_t bytes_compressed,
-    const bool last_block)
-{
-    uint64_t v[ARGON_QWORDS_IN_BLOCK];
+    uint64_t v[BLAKE_QWORDS_IN_BLOCK];
 
     v[0] = h[0];
     v[1] = h[1];
@@ -135,11 +82,114 @@ __device__ void blake2b_compress(
     v[14] = last_block ? ~IV6 : IV6;
     v[15] = IV7;
 
-    #pragma unroll
-    for (uint32_t r = 0; r < 12; r++)
-    {
-        blake2b_round(r, v, m);
-    }
+    // Round 0
+    G(0, 4, 8, 12, 0, 1);
+    G(1, 5, 9, 13, 2, 3);
+    G(2, 6, 10, 14, 4, 5);
+    G(3, 7, 11, 15, 6, 7);
+    G(0, 5, 10, 15, 8, 9);
+    G(1, 6, 11, 12, 10, 11);
+    G(2, 7, 8, 13, 12, 13);
+    G(3, 4, 9, 14, 14, 15);
+    // Round 1
+    G(0, 4, 8, 12, 14, 10);
+    G(1, 5, 9, 13, 4, 8);
+    G(2, 6, 10, 14, 9, 15);
+    G(3, 7, 11, 15, 13, 6);
+    G(0, 5, 10, 15, 1, 12);
+    G(1, 6, 11, 12, 0, 2);
+    G(2, 7, 8, 13, 11, 7);
+    G(3, 4, 9, 14, 5, 3);
+    // Round 2
+    G(0, 4, 8, 12, 11, 8);
+    G(1, 5, 9, 13, 12, 0);
+    G(2, 6, 10, 14, 5, 2);
+    G(3, 7, 11, 15, 15, 13);
+    G(0, 5, 10, 15, 10, 14);
+    G(1, 6, 11, 12, 3, 6);
+    G(2, 7, 8, 13, 7, 1);
+    G(3, 4, 9, 14, 9, 4); 
+    // Round 3
+    G(0, 4, 8, 12, 7, 9);
+    G(1, 5, 9, 13, 3, 1);
+    G(2, 6, 10, 14, 13, 12);
+    G(3, 7, 11, 15, 11, 14);
+    G(0, 5, 10, 15, 2, 6);
+    G(1, 6, 11, 12, 5, 10);
+    G(2, 7, 8, 13, 4, 0);
+    G(3, 4, 9, 14, 15, 8);
+    // Round 4
+    G(0, 4, 8, 12, 9, 0);
+    G(1, 5, 9, 13, 5, 7);
+    G(2, 6, 10, 14, 2, 4);
+    G(3, 7, 11, 15, 10, 15);
+    G(0, 5, 10, 15, 14, 1);
+    G(1, 6, 11, 12, 11, 12);
+    G(2, 7, 8, 13, 6, 8);
+    G(3, 4, 9, 14, 3, 13); 
+    // Round 5
+    G(0, 4, 8, 12, 2, 12);
+    G(1, 5, 9, 13, 6, 10);
+    G(2, 6, 10, 14, 0, 11);
+    G(3, 7, 11, 15, 8, 3);
+    G(0, 5, 10, 15, 4, 13);
+    G(1, 6, 11, 12, 7, 5);
+    G(2, 7, 8, 13, 15, 14);
+    G(3, 4, 9, 14, 1, 9);
+    // Round 6
+    G(0, 4, 8, 12, 12, 5);
+    G(1, 5, 9, 13, 1, 15);
+    G(2, 6, 10, 14, 14, 13);
+    G(3, 7, 11, 15, 4, 10);
+    G(0, 5, 10, 15, 0, 7);
+    G(1, 6, 11, 12, 6, 3);
+    G(2, 7, 8, 13, 9, 2);
+    G(3, 4, 9, 14, 8, 11);
+    // Round 7
+    G(0, 4, 8, 12, 13, 11);
+    G(1, 5, 9, 13, 7, 14);
+    G(2, 6, 10, 14, 12, 1);
+    G(3, 7, 11, 15, 3, 9);
+    G(0, 5, 10, 15, 5, 0);
+    G(1, 6, 11, 12, 15, 4);
+    G(2, 7, 8, 13, 8, 6);
+    G(3, 4, 9, 14, 2, 10);
+    // Round 8
+    G(0, 4, 8, 12, 6, 15);
+    G(1, 5, 9, 13, 14, 9);
+    G(2, 6, 10, 14, 11, 3);
+    G(3, 7, 11, 15, 0, 8);
+    G(0, 5, 10, 15, 12, 2);
+    G(1, 6, 11, 12, 13, 7);
+    G(2, 7, 8, 13, 1, 4);
+    G(3, 4, 9, 14, 10, 5);
+    // Round 9
+    G(0, 4, 8, 12, 10, 2);
+    G(1, 5, 9, 13, 8, 4);
+    G(2, 6, 10, 14, 7, 6);
+    G(3, 7, 11, 15, 1, 5);
+    G(0, 5, 10, 15, 15, 11);
+    G(1, 6, 11, 12, 9, 14);
+    G(2, 7, 8, 13, 3, 12);
+    G(3, 4, 9, 14, 13, 0);
+    // Round 10
+    G(0, 4, 8, 12, 0, 1);
+    G(1, 5, 9, 13, 2, 3);
+    G(2, 6, 10, 14, 4, 5);
+    G(3, 7, 11, 15, 6, 7);
+    G(0, 5, 10, 15, 8, 9);
+    G(1, 6, 11, 12, 10, 11);
+    G(2, 7, 8, 13, 12, 13);
+    G(3, 4, 9, 14, 14, 15);
+    // Round 11
+    G(0, 4, 8, 12, 14, 10);
+    G(1, 5, 9, 13, 4, 8);
+    G(2, 6, 10, 14, 9, 15);
+    G(3, 7, 11, 15, 13, 6);
+    G(0, 5, 10, 15, 1, 12);
+    G(1, 6, 11, 12, 0, 2);
+    G(2, 7, 8, 13, 11, 7);
+    G(3, 4, 9, 14, 5, 3);
 
     h[0] = h[0] ^ v[0] ^ v[8];
     h[1] = h[1] ^ v[1] ^ v[9];
@@ -157,110 +207,90 @@ void setNonce(uint64_t *inseed, uint32_t nonce)
     /* Need 64 bit to do a shift of 40 */
     uint64_t nonce64 = nonce;
 
-    /* Set byte 39 of 32-39 */
-    inseed[4] = (inseed[4] & 0xFFFFFFFFFFFFFF00UL) | (nonce64 >> 24);
-
-    /* Set byte 40-42 of 40-47 */
-    inseed[5] = (inseed[5] & 0x000000FFFFFFFFFFUL) | (nonce64 << 40);
-}
-
-__device__ 
-void initial_hash(
-    uint64_t *hash,
-    uint64_t *inseed,
-    size_t blakeInputSize,
-    uint32_t nonce)
-{
-    uint64_t buffer[BLAKE_QWORDS_IN_BLOCK];
-
-    blake2b_init(hash, BLAKE_HASH_LENGTH);
-
-    for (int i = 0; i < BLAKE_QWORDS_IN_BLOCK; i++)
-    {
-        buffer[i] = inseed[i];
-    }
-
-    setNonce(buffer, nonce);
-
-    blake2b_compress(hash, buffer, BLAKE_BLOCK_SIZE, false);
-
-    for (int i = 0; i < BLAKE_QWORDS_IN_BLOCK; i++)
-    {
-        buffer[i] = inseed[BLAKE_QWORDS_IN_BLOCK + i];
-    }
-
-    blake2b_compress(hash, buffer, blakeInputSize, true);
+    /* Set byte 67-70 */
+    inseed[8] = (inseed[8] & 0xFF00000000FFFFFFUL) | (nonce64 << 24);
 }
 
 __device__
-void fillFirstBlock(
-    block_g *memory,
-    uint64_t *blakeInput,
-    size_t blakeInputSize,
+void initial_hash(
+    uint64_t *inseed,
     uint32_t nonce,
-    uint32_t block)
+    uint64_t *hash,
+    size_t blakeInputSize)
 {
-    uint64_t hash[8];
-    initial_hash(hash, blakeInput, blakeInputSize, nonce);
+    uint64_t is[32];
+    memcpy(is, inseed, sizeof(is));
 
-    uint32_t prehash_seed[BLAKE_DWORDS_IN_BLOCK];
-
-    prehash_seed[0] = ARGON_BLOCK_SIZE;
-
-    memcpy(&prehash_seed[1], hash, BLAKE_HASH_LENGTH);
-
-    prehash_seed[17] = block;
-
-    for (int i = 18; i < BLAKE_DWORDS_IN_BLOCK; i++)
-    {
-        prehash_seed[i] = 0;
-    }
-
-    uint64_t *dst = static_cast<uint64_t *>(memory->data);
+    setNonce(is, nonce);
 
     blake2b_init(hash, BLAKE_HASH_LENGTH);
-    blake2b_compress(hash, reinterpret_cast<uint64_t *>(prehash_seed), BLAKE_INITIAL_HASH_LENGTH, true);
-
-    *(dst++) = hash[0];
-    *(dst++) = hash[1];
-    *(dst++) = hash[2];
-    *(dst++) = hash[3];
-
-    uint64_t buffer[BLAKE_QWORDS_IN_BLOCK];
-
-    for (int i = 8; i < BLAKE_QWORDS_IN_BLOCK; i++)
-    {
-        buffer[i] = 0;
-    }
-
-    /* TODO: #pragma unroll ? */
-    for (int r = 2; r < ARGON_BLOCK_SIZE / BLAKE_HASH_LENGTH; r++)
-    {
-        buffer[0] = hash[0];
-        buffer[1] = hash[1];
-        buffer[2] = hash[2];
-        buffer[3] = hash[3];
-        buffer[4] = hash[4];
-        buffer[5] = hash[5];
-        buffer[6] = hash[6];
-        buffer[7] = hash[7];
-
-        blake2b_init(hash, BLAKE_HASH_LENGTH);
-        blake2b_compress(hash, buffer, BLAKE_HASH_LENGTH, true);
-
-        *(dst++) = hash[0];
-        *(dst++) = hash[1];
-        *(dst++) = hash[2];
-        *(dst++) = hash[3];
-    }
-
-    *(dst++) = hash[4];
-    *(dst++) = hash[5];
-    *(dst++) = hash[6];
-    *(dst++) = hash[7];
+    blake2b_compress(hash, &is[0], BLAKE_BLOCK_SIZE, false);
+    blake2b_compress(hash, &is[BLAKE_QWORDS_IN_BLOCK], blakeInputSize, true);
 }
 
-__device__ void hash_last_block(block_g *memory, uint64_t *hash)
+__device__
+void fill_block(struct prehash_seed *phseed, struct block_g *memory)
+{
+    uint64_t h[8];
+    uint64_t buffer[BLAKE_QWORDS_IN_BLOCK] = {0};
+    uint64_t *dst = memory->data;
+
+    // V1
+    blake2b_init(h, BLAKE_HASH_LENGTH);
+    blake2b_compress(h, (uint64_t *)phseed, BLAKE_INITIAL_HASH_LENGTH, true);
+
+    *(dst++) = h[0];
+    *(dst++) = h[1];
+    *(dst++) = h[2];
+    *(dst++) = h[3];
+
+    // V2-Vr
+    for (int r = 2; r < 2 * ARGON_BLOCK_SIZE / BLAKE_HASH_LENGTH; r++)
+    {
+        buffer[0] = h[0];
+        buffer[1] = h[1];
+        buffer[2] = h[2];
+        buffer[3] = h[3];
+        buffer[4] = h[4];
+        buffer[5] = h[5];
+        buffer[6] = h[6];
+        buffer[7] = h[7];
+
+        blake2b_init(h, BLAKE_HASH_LENGTH);
+        blake2b_compress(h, buffer, BLAKE_HASH_LENGTH, true);
+
+        *(dst++) = h[0];
+        *(dst++) = h[1];
+        *(dst++) = h[2];
+        *(dst++) = h[3];
+    }
+
+    *(dst++) = h[4];
+    *(dst++) = h[5];
+    *(dst++) = h[6];
+    *(dst++) = h[7];
+}
+
+__device__
+void fill_first_blocks(
+    uint64_t *inseed,
+    struct block_g *memory,
+    uint32_t nonce,
+    size_t blakeInputSize)
+{
+    struct prehash_seed phs = {ARGON_BLOCK_SIZE};
+
+    initial_hash(inseed, nonce, phs.initial_hash, blakeInputSize);
+
+    phs.block = 0;
+    fill_block(&phs, memory);
+
+    phs.block = 1;
+    fill_block(&phs, memory + 1);
+}
+
+__device__
+void hash_last_block(block_g *memory, uint64_t *hash)
 {
     uint64_t buffer[BLAKE_QWORDS_IN_BLOCK];
     uint32_t hi, lo;
@@ -315,19 +345,15 @@ __device__ void hash_last_block(block_g *memory, uint64_t *hash)
 
 __global__
 void initMemoryKernel(
-    block_g *memory,
-    uint64_t *blakeInput,
-    size_t blakeInputSize,
-    const uint32_t startNonce)
+    struct block_g *memory,
+    uint64_t *inseed,
+    uint32_t memory_cost,
+    uint32_t start_nonce,
+    size_t blakeInputSize)
 {
-    uint32_t jobNumber = blockIdx.x * blockDim.x + threadIdx.x;
-    uint32_t nonce = startNonce + jobNumber;
-    uint32_t block = threadIdx.y;
-
-    /* Find the index for the memory belonging to this GPU thread */
-    block_g *threadMemory = memory + (static_cast<uint64_t>(jobNumber) * TRTL_SCRATCHPAD_SIZE + block);
-
-    fillFirstBlock(threadMemory, blakeInput, blakeInputSize, nonce, block);
+    uint32_t thread = blockIdx.x * blockDim.x + threadIdx.x;
+    memory += (size_t)thread * memory_cost;
+    fill_first_blocks(inseed, memory, start_nonce + thread, blakeInputSize);
 }
 
 __global__
@@ -393,9 +419,11 @@ void setupBlakeInput(
     const uint32_t threads = 1;
     const uint32_t keyLen = ARGON_HASH_LENGTH;
     const uint32_t memory = TRTL_MEMORY;
-    const uint32_t time = TRTL_ITERATIONS;
+    const uint32_t time = 1 /* TODO FIXME TRTL_ITERATIONS */;
     const uint32_t version = 19; /* Argon version */
-    const uint32_t mode = 2; /* Argon2id */
+    const uint32_t mode = 0; /* Argon2id */
+
+    /* TODO FIXME ^^^ */
 
     const uint32_t messageSize = static_cast<uint32_t>(input.size());
     const uint32_t saltSize = saltInput.size();
