@@ -191,39 +191,63 @@ std::vector<uint8_t> Argon2::initHash(
     const std::vector<uint8_t> &message,
     const std::vector<uint8_t> &salt)
 {
-    uint32_t size;
+    const uint32_t messageSize = static_cast<uint32_t>(message.size());
+    const uint32_t saltSize = salt.size();
+    const uint32_t secretSize = m_secret.size();
+    const uint32_t dataSize = m_data.size();
 
-    /* Can either do this step by appending everything to one vector then
-       performing one hash, or using a streaming approach with .Update() */
-    Blake2b blake(m_optimizationMethod);
+    size_t inputSize = sizeof(m_threads) + sizeof(m_keyLen) + sizeof(m_memory)
+        + sizeof(m_time) + sizeof(m_version) + sizeof(m_mode) + sizeof(messageSize)
+        + messageSize + sizeof(saltSize) + saltSize + sizeof(secretSize) + secretSize
+        + sizeof(dataSize) + dataSize;
 
-    /* STEP 2: Initialize first hash */
-    blake.Init();
+    std::vector<uint8_t> initialInput(inputSize);
 
-    blake.Update(reinterpret_cast<const uint8_t *>(&m_threads), sizeof(m_threads));
-    blake.Update(reinterpret_cast<const uint8_t *>(&m_keyLen), sizeof(m_keyLen));
-    blake.Update(reinterpret_cast<const uint8_t *>(&m_memory), sizeof(m_memory));
-    blake.Update(reinterpret_cast<const uint8_t *>(&m_time), sizeof(m_time));
-    blake.Update(reinterpret_cast<const uint8_t *>(&m_version), sizeof(m_version));
-    blake.Update(reinterpret_cast<const uint8_t *>(&m_mode), sizeof(m_mode));
+    size_t index = 0;
 
-    size = static_cast<uint32_t>(message.size());
-    blake.Update(reinterpret_cast<const uint8_t *>(&size), sizeof(size));
-    blake.Update(message.data(), size);
+    std::memcpy(&initialInput[index], &m_threads, sizeof(m_threads));
+    index += sizeof(m_threads);
 
-    size = static_cast<uint32_t>(salt.size());
-    blake.Update(reinterpret_cast<const uint8_t *>(&size), sizeof(size));
-    blake.Update(salt.data(), size);
+    std::memcpy(&initialInput[index], &m_keyLen, sizeof(m_keyLen));
+    index += sizeof(m_keyLen);
 
-    size = static_cast<uint32_t>(m_secret.size());
-    blake.Update(reinterpret_cast<const uint8_t *>(&size), sizeof(size));
-    blake.Update(m_secret.data(), size);
+    std::memcpy(&initialInput[index], &m_memory, sizeof(m_memory));
+    index += sizeof(m_memory);
 
-    size = static_cast<uint32_t>(m_data.size());
-    blake.Update(reinterpret_cast<const uint8_t *>(&size), sizeof(size));
-    blake.Update(m_data.data(), size);
+    std::memcpy(&initialInput[index], &m_time, sizeof(m_time));
+    index += sizeof(m_time);
 
-    return blake.Finalize();
+    std::memcpy(&initialInput[index], &m_version, sizeof(m_version));
+    index += sizeof(m_version);
+
+    std::memcpy(&initialInput[index], &m_mode, sizeof(m_mode));
+    index += sizeof(m_mode);
+
+    std::memcpy(&initialInput[index], &messageSize, sizeof(messageSize));
+    index += sizeof(messageSize);
+
+    std::memcpy(&initialInput[index], &message[0], messageSize);
+    index += messageSize;
+
+    std::memcpy(&initialInput[index], &saltSize, sizeof(saltSize));
+    index += sizeof(saltSize);
+
+    std::memcpy(&initialInput[index], &salt[0], saltSize);
+    index += saltSize;
+
+    std::memcpy(&initialInput[index], &secretSize, sizeof(secretSize));
+    index += sizeof(secretSize);
+
+    std::memcpy(&initialInput[index], &m_secret[0], secretSize);
+    index += secretSize;
+
+    std::memcpy(&initialInput[index], &dataSize, sizeof(dataSize));
+    index += sizeof(dataSize);
+
+    std::memcpy(&initialInput[index], &m_data[0], dataSize);
+    index += dataSize;
+
+    return Blake2b::Hash(initialInput);
 }
 
 void Argon2::initBlocks(std::vector<uint8_t> &h0)
