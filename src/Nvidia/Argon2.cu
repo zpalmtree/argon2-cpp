@@ -372,7 +372,12 @@ void argon2Kernel(
 
     uint32_t skip = 2;
 
-    for (uint32_t offset = 2; offset < memory_cost; ++offset) {
+    for (uint32_t offset = 0; offset < memory_cost; ++offset) {
+        if (skip > 0) {
+            skip--;
+            continue;
+        }
+
         argon2_step(memory, mem_curr, &prev, tmp, thread, offset);
         mem_curr++;
     }
