@@ -218,14 +218,25 @@ void initial_hash(
     uint64_t *hash,
     size_t blakeInputSize)
 {
-    uint64_t is[32];
-    memcpy(is, inseed, sizeof(is));
-
-    setNonce(is, nonce);
+    uint64_t buffer[BLAKE_QWORDS_IN_BLOCK];
 
     blake2b_init(hash, BLAKE_HASH_LENGTH);
-    blake2b_compress(hash, &is[0], BLAKE_BLOCK_SIZE, false);
-    blake2b_compress(hash, &is[BLAKE_QWORDS_IN_BLOCK], blakeInputSize, true);
+
+    for (int i = 0; i < BLAKE_QWORDS_IN_BLOCK; i++)
+    {
+        buffer[i] = inseed[i];
+    }
+
+    setNonce(buffer, nonce);
+
+    blake2b_compress(hash, buffer, BLAKE_BLOCK_SIZE, false);
+
+    for (int i = 0; i < BLAKE_QWORDS_IN_BLOCK; i++)
+    {
+        buffer[i] = inseed[BLAKE_QWORDS_IN_BLOCK + i];
+    }
+
+    blake2b_compress(hash, buffer, blakeInputSize, true);
 }
 
 __device__
