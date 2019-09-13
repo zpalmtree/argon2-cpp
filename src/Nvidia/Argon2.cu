@@ -470,13 +470,12 @@ HashResult nvidiaHash(NvidiaState &state)
     /* Launch the first kernel to perform initial blake initialization */
     initMemoryKernel<<<
         dim3(state.launchParams.initMemoryBlocks),
-        dim3(state.launchParams.initMemoryThreads)
+        dim3(state.launchParams.initMemoryThreads, 2)
     >>>(
         state.memory,
         state.blakeInput,
-        TRTL_MEMORY,
-        state.localNonce,
-        state.blakeInputSize
+        state.blakeInputSize,
+        state.localNonce
     );
 
     /* Launch the second kernel to perform the main argon work */

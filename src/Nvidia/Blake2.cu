@@ -198,64 +198,63 @@ void initial_hash(
 }
 
 __device__
-void fill_block(struct prehash_seed *phseed, struct block_g *memory)
+void fillFirstBlock(
+    block_g *memory,
+    uint64_t *blakeInput,
+    size_t blakeInputSize,
+    uint32_t nonce,
+    uint32_t block)
 {
-    uint64_t h[8];
-    uint64_t buffer[BLAKE_QWORDS_IN_BLOCK] = {0};
-    uint64_t *dst = memory->data;
+    uint64_t hash[8];
+    initial_hash(hash, blakeInput, blakeInputSize, nonce);
 
-    // V1
-    blake2b_init(h, BLAKE_HASH_LENGTH);
-    blake2b_compress(h, (uint64_t *)phseed, BLAKE_INITIAL_HASH_LENGTH, true);
+    uint32_t prehash_seed[BLAKE_DWORDS_IN_BLOCK];
 
-    *(dst++) = h[0];
-    *(dst++) = h[1];
-    *(dst++) = h[2];
-    *(dst++) = h[3];
-
-    // V2-Vr
-    for (int r = 2; r < 2 * ARGON_BLOCK_SIZE / BLAKE_HASH_LENGTH; r++)
+    // Construct prehash seed
+    prehash_seed[0] = ARGON_BLOCK_SIZE;
+    memcpy(&prehash_seed[1], hash, BLAKE_HASH_LENGTH);
+    prehash_seed[17] = block;
+    for (int i = 18; i < 32; i++)
     {
-        buffer[0] = h[0];
-        buffer[1] = h[1];
-        buffer[2] = h[2];
-        buffer[3] = h[3];
-        buffer[4] = h[4];
-        buffer[5] = h[5];
-        buffer[6] = h[6];
-        buffer[7] = h[7];
-
-        blake2b_init(h, BLAKE_HASH_LENGTH);
-        blake2b_compress(h, buffer, BLAKE_HASH_LENGTH, true);
-
-        *(dst++) = h[0];
-        *(dst++) = h[1];
-        *(dst++) = h[2];
-        *(dst++) = h[3];
+        prehash_seed[i] = 0;
     }
 
-    *(dst++) = h[4];
-    *(dst++) = h[5];
-    *(dst++) = h[6];
-    *(dst++) = h[7];
-}
+    ulonglong2 *dst = (ulonglong2*) memory->data;
 
-__device__
-void fill_first_blocks(
-    uint64_t *inseed,
-    struct block_g *memory,
-    uint32_t nonce,
-    size_t blakeInputSize)
-{
-    struct prehash_seed phs = {ARGON_BLOCK_SIZE};
+    // V1
+    blake2b_init(hash, BLAKE_HASH_LENGTH);
+    blake2b_compress(hash, (uint64_t*) prehash_seed, BLAKE_INITIAL_HASH_LENGTH, true);
 
-    initial_hash(phs.initial_hash, inseed, blakeInputSize, nonce);
+    *(dst++) = *((ulonglong2*) &hash[0]);
+    *(dst++) = *((ulonglong2*) &hash[2]);
 
-    phs.block = 0;
-    fill_block(&phs, memory);
+    // V2-Vr
+    uint64_t buffer[BLAKE_QWORDS_IN_BLOCK];
+    for (int i = 8; i < BLAKE_QWORDS_IN_BLOCK; i++)
+    {
+        buffer[i] = 0;
+    }
 
-    phs.block = 1;
-    fill_block(&phs, memory + 1);
+    for (int r = 2; r < 2 * ARGON_BLOCK_SIZE / BLAKE_HASH_LENGTH; r++)
+    {
+        buffer[0] = hash[0];
+        buffer[1] = hash[1];
+        buffer[2] = hash[2];
+        buffer[3] = hash[3];
+        buffer[4] = hash[4];
+        buffer[5] = hash[5];
+        buffer[6] = hash[6];
+        buffer[7] = hash[7];
+
+        blake2b_init(hash, BLAKE_HASH_LENGTH);
+        blake2b_compress(hash, buffer, BLAKE_HASH_LENGTH, true);
+
+        *(dst++) = *((ulonglong2*) &hash[0]);
+        *(dst++) = *((ulonglong2*) &hash[2]);
+    }
+
+    *(dst++) = *((ulonglong2*) &hash[4]);
+    *(dst++) = *((ulonglong2*) &hash[6]);
 }
 
 __device__
@@ -314,15 +313,19 @@ void hash_last_block(block_g *memory, uint64_t *hash)
 
 __global__
 void initMemoryKernel(
-    struct block_g *memory,
-    uint64_t *inseed,
-    uint32_t memory_cost,
-    uint32_t start_nonce,
-    size_t blakeInputSize)
+    block_g *memory,
+    uint64_t *blakeInput,
+    size_t blakeInputSize,
+    const uint32_t startNonce)
 {
-    uint32_t thread = blockIdx.x * blockDim.x + threadIdx.x;
-    memory += (size_t)thread * memory_cost;
-    fill_first_blocks(inseed, memory, start_nonce + thread, blakeInputSize);
+    uint32_t jobNumber = blockIdx.x * blockDim.x + threadIdx.x;
+    uint32_t nonce = startNonce + jobNumber;
+    uint32_t block = threadIdx.y;
+
+    /* Find the index for the memory belonging to this GPU thread */
+    block_g *threadMemory = memory + (static_cast<uint64_t>(jobNumber) * TRTL_SCRATCHPAD_SIZE + block);
+
+    fillFirstBlock(threadMemory, blakeInput, blakeInputSize, nonce, block);
 }
 
 __global__
