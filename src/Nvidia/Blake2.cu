@@ -399,11 +399,9 @@ void setupBlakeInput(
     const uint32_t threads = 1;
     const uint32_t keyLen = ARGON_HASH_LENGTH;
     const uint32_t memory = TRTL_MEMORY;
-    const uint32_t time = 1 /* TODO FIXME TRTL_ITERATIONS */;
+    const uint32_t time = TRTL_ITERATIONS;
     const uint32_t version = 19; /* Argon version */
-    const uint32_t mode = 0; /* Argon2id */
-
-    /* TODO FIXME ^^^ */
+    const uint32_t mode = 2; /* Argon2id */
 
     const uint32_t messageSize = static_cast<uint32_t>(input.size());
     const uint32_t saltSize = saltInput.size();

@@ -9,6 +9,7 @@
 const size_t ARGON_BLOCK_SIZE = 1024;
 const size_t ARGON_QWORDS_IN_BLOCK = ARGON_BLOCK_SIZE / 8;
 const size_t ARGON_HASH_LENGTH = 32;
+const size_t ARGON_SYNC_POINTS = 4;
 
 const size_t BLAKE_BLOCK_SIZE = 128;
 const size_t BLAKE_DWORDS_IN_BLOCK = BLAKE_BLOCK_SIZE / 4;
