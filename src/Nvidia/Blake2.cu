@@ -169,12 +169,12 @@ void setNonce(uint64_t *inseed, uint32_t nonce)
     inseed[8] = (inseed[8] & 0xFF00000000FFFFFFUL) | (nonce64 << 24);
 }
 
-__device__
+__device__ 
 void initial_hash(
-    uint64_t *inseed,
-    uint32_t nonce,
     uint64_t *hash,
-    size_t blakeInputSize)
+    uint64_t *inseed,
+    size_t blakeInputSize,
+    uint32_t nonce)
 {
     uint64_t buffer[BLAKE_QWORDS_IN_BLOCK];
 
@@ -249,7 +249,7 @@ void fill_first_blocks(
 {
     struct prehash_seed phs = {ARGON_BLOCK_SIZE};
 
-    initial_hash(inseed, nonce, phs.initial_hash, blakeInputSize);
+    initial_hash(phs.initial_hash, inseed, blakeInputSize, nonce);
 
     phs.block = 0;
     fill_block(&phs, memory);
