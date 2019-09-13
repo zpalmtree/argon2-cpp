@@ -210,31 +210,35 @@ void fillFirstBlock(
 
     uint32_t prehash_seed[BLAKE_DWORDS_IN_BLOCK];
 
-    // Construct prehash seed
     prehash_seed[0] = ARGON_BLOCK_SIZE;
+
     memcpy(&prehash_seed[1], hash, BLAKE_HASH_LENGTH);
+
     prehash_seed[17] = block;
-    for (int i = 18; i < 32; i++)
+
+    for (int i = 18; i < BLAKE_DWORDS_IN_BLOCK; i++)
     {
         prehash_seed[i] = 0;
     }
 
-    ulonglong2 *dst = (ulonglong2*) memory->data;
+    uint64_t *dst = static_cast<uint64_t *>(memory->data);
 
-    // V1
     blake2b_init(hash, BLAKE_HASH_LENGTH);
-    blake2b_compress(hash, (uint64_t*) prehash_seed, BLAKE_INITIAL_HASH_LENGTH, true);
+    blake2b_compress(hash, reinterpret_cast<uint64_t *>(prehash_seed), BLAKE_INITIAL_HASH_LENGTH, true);
 
-    *(dst++) = *((ulonglong2*) &hash[0]);
-    *(dst++) = *((ulonglong2*) &hash[2]);
+    *(dst++) = hash[0];
+    *(dst++) = hash[1];
+    *(dst++) = hash[2];
+    *(dst++) = hash[3];
 
-    // V2-Vr
     uint64_t buffer[BLAKE_QWORDS_IN_BLOCK];
+
     for (int i = 8; i < BLAKE_QWORDS_IN_BLOCK; i++)
     {
         buffer[i] = 0;
     }
 
+    /* TODO: #pragma unroll ? */
     for (int r = 2; r < 2 * ARGON_BLOCK_SIZE / BLAKE_HASH_LENGTH; r++)
     {
         buffer[0] = hash[0];
@@ -249,12 +253,16 @@ void fillFirstBlock(
         blake2b_init(hash, BLAKE_HASH_LENGTH);
         blake2b_compress(hash, buffer, BLAKE_HASH_LENGTH, true);
 
-        *(dst++) = *((ulonglong2*) &hash[0]);
-        *(dst++) = *((ulonglong2*) &hash[2]);
+        *(dst++) = hash[0];
+        *(dst++) = hash[1];
+        *(dst++) = hash[2];
+        *(dst++) = hash[3];
     }
 
-    *(dst++) = *((ulonglong2*) &hash[4]);
-    *(dst++) = *((ulonglong2*) &hash[6]);
+    *(dst++) = hash[4];
+    *(dst++) = hash[5];
+    *(dst++) = hash[6];
+    *(dst++) = hash[7];
 }
 
 __device__
