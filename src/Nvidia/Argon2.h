@@ -61,6 +61,8 @@ struct kernelLaunchParams
     size_t memoryTradeoff = 192;
 
     size_t noncesPerRun;
+
+    size_t jobsPerBlock;
 };
 
 struct NvidiaState

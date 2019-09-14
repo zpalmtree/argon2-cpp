@@ -555,10 +555,14 @@ kernelLaunchParams getLaunchParams(
     params.initMemoryBlocks = noncesPerRun / BLAKE_THREADS_PER_BLOCK;
     params.initMemoryThreads = BLAKE_THREADS_PER_BLOCK;
 
+    uint32_t batchSize = 4096;
+
+    params.jobsPerBlock = 16;
+
     /* Argon2 kernel params */
-    params.argon2Blocks = noncesPerRun;
+    params.argon2Blocks = batchSize / params.jobsPerBlock;
     params.argon2Threads = THREADS_PER_LANE;
-    params.argon2Cache = params.cache * ARGON_BLOCK_SIZE;
+    params.argon2Cache = params.jobsPerBlock * sizeof(u64_shuffle_buf);
 
     params.getNonceBlocks = noncesPerRun / BLAKE_THREADS_PER_BLOCK;
     params.getNonceThreads = BLAKE_THREADS_PER_BLOCK;
@@ -629,23 +633,16 @@ HashResult nvidiaHash(NvidiaState &state)
         state.localNonce
     );
 
-    uint32_t segments = ARGON_SYNC_POINTS;
-    uint32_t segmentBlocks = std::max(TRTL_MEMORY, 2 * segments) / segments;
-    uint32_t lanesPerBlock = 1;
-    uint32_t batchSize = 16;
-    uint32_t jobsPerBlock = 16;
-
-    dim3 blocks = dim3(1, 1, batchSize / jobsPerBlock);
-    dim3 threads = dim3(THREADS_PER_LANE, 1, jobsPerBlock);
-    uint32_t blockSize = lanesPerBlock * jobsPerBlock;
-    uint32_t shared_size = blockSize * sizeof(struct u64_shuffle_buf);
-
     /* Launch the second kernel to perform the main argon work */
-    argon2_kernel_oneshot<<<blocks, threads, shared_size>>>(
+    argon2_kernel_oneshot<<<
+        dim3(1, 1, state.launchParams.argon2Blocks),
+        dim3(state.launchParams.argon2Threads, 1, state.launchParams.jobsPerBlock),
+        state.launchParams.argon2Cache
+    >>>(
         state.memory,
         TRTL_ITERATIONS,
         1,
-        segmentBlocks
+        TRTL_MEMORY / ARGON_SYNC_POINTS
     );
 
     /* Launch the final kernel to perform final blake round and extract
