@@ -238,7 +238,6 @@ void fillFirstBlock(
         buffer[i] = 0;
     }
 
-    /* TODO: #pragma unroll ? */
     for (int r = 2; r < 2 * ARGON_BLOCK_SIZE / BLAKE_HASH_LENGTH; r++)
     {
         buffer[0] = hash[0];
@@ -324,14 +323,15 @@ void initMemoryKernel(
     block_g *memory,
     uint64_t *blakeInput,
     size_t blakeInputSize,
-    const uint32_t startNonce)
+    const uint32_t startNonce,
+    const size_t scratchpadSize)
 {
     uint32_t jobNumber = blockIdx.x * blockDim.x + threadIdx.x;
     uint32_t nonce = startNonce + jobNumber;
     uint32_t block = threadIdx.y;
 
     /* Find the index for the memory belonging to this GPU thread */
-    block_g *threadMemory = memory + (static_cast<uint64_t>(jobNumber) * TRTL_SCRATCHPAD_SIZE + block);
+    block_g *threadMemory = memory + (static_cast<uint64_t>(jobNumber) * scratchpadSize + block);
 
     fillFirstBlock(threadMemory, blakeInput, blakeInputSize, nonce, block);
 }
@@ -343,11 +343,12 @@ void getNonceKernel(
     uint64_t target,
     uint32_t *resultNonce,
     uint8_t *resultHash,
-    bool *success)
+    bool *success,
+    const size_t scratchpadSize)
 {
     uint32_t jobNumber = blockIdx.x * blockDim.x + threadIdx.x;
 
-    block_g *threadMemory = memory + (static_cast<uint64_t>(jobNumber) + 1) * TRTL_SCRATCHPAD_SIZE - 1;
+    block_g *threadMemory = memory + (static_cast<uint64_t>(jobNumber) + 1) * scratchpadSize - 1;
 
     uint64_t hash[8];
 
@@ -398,8 +399,8 @@ void setupBlakeInput(
 {
     const uint32_t threads = 1;
     const uint32_t keyLen = ARGON_HASH_LENGTH;
-    const uint32_t memory = TRTL_MEMORY;
-    const uint32_t time = TRTL_ITERATIONS;
+    const uint32_t memory = state.launchParams.scratchpadSize;
+    const uint32_t time = state.launchParams.iterations;
     const uint32_t version = 19; /* Argon version */
     const uint32_t mode = 2; /* Argon2id */
 

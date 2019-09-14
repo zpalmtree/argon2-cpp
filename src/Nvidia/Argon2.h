@@ -21,11 +21,6 @@ const size_t BLAKE_INITIAL_HASH_LENGTH = 76;
 const uint32_t THREADS_PER_LANE = 32;
 const size_t QWORDS_PER_THREAD = ARGON_QWORDS_IN_BLOCK / THREADS_PER_LANE;
 
-/* TODO: This stuff should be in a struct we pass in */
-const uint32_t TRTL_MEMORY = 512;
-const uint32_t TRTL_SCRATCHPAD_SIZE = TRTL_MEMORY;
-const uint32_t TRTL_ITERATIONS = 3;
-
 struct block_g
 {
     uint64_t data[ARGON_QWORDS_IN_BLOCK];
@@ -57,12 +52,12 @@ struct kernelLaunchParams
     size_t getNonceBlocks;
     size_t getNonceThreads;
 
-    size_t cache = 4;
-    size_t memoryTradeoff = 192;
-
     size_t noncesPerRun;
 
     size_t jobsPerBlock;
+
+    size_t scratchpadSize;
+    size_t iterations;
 };
 
 struct NvidiaState
@@ -99,7 +94,10 @@ struct NvidiaState
     uint64_t target;
 };
 
-NvidiaState initializeState(const uint32_t gpuIndex);
+NvidiaState initializeState(
+    const uint32_t gpuIndex,
+    const size_t scratchpadSize,
+    const size_t iterations);
 
 void freeState(NvidiaState &state);
 

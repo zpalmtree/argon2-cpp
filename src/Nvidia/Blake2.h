@@ -13,7 +13,8 @@ void initMemoryKernel(
     block_g *memory,
     uint64_t *blakeInput,
     size_t blakeInputSize,
-    const uint32_t startNonce);
+    const uint32_t startNonce,
+    const size_t scratchpadSize);
 
 __global__
 void getNonceKernel(
@@ -22,7 +23,8 @@ void getNonceKernel(
     uint64_t target,
     uint32_t *resultNonce,
     uint8_t *resultHash,
-    bool *success);
+    bool *success,
+    const size_t scratchpadSize);
 
 void setupBlakeInput(
     const std::vector<uint8_t> &input,

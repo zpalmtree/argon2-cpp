@@ -49,7 +49,6 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort =
     }
 }
 
-
 __device__
 uint64_t u64_build(
     const uint32_t hi,
@@ -677,7 +676,9 @@ void argon2Kernel(
 }
 
 kernelLaunchParams getLaunchParams(
-    const uint32_t gpuIndex)
+    const uint32_t gpuIndex,
+    const size_t scratchpadSize,
+    const size_t iterations)
 {
     kernelLaunchParams params;
 
@@ -692,11 +693,11 @@ kernelLaunchParams getLaunchParams(
     size_t memoryAvailable = (properties.totalGlobalMem / ONE_GB - 1) * (ONE_GB / ONE_MB);
 
     /* The amount of nonces we're going to try per kernel launch */
-    uint32_t noncesPerRun = (memoryAvailable * ONE_MB) / (sizeof(block_g) * TRTL_SCRATCHPAD_SIZE);
+    uint32_t noncesPerRun = (memoryAvailable * ONE_MB) / (sizeof(block_g) * scratchpadSize);
     noncesPerRun = (noncesPerRun / BLAKE_THREADS_PER_BLOCK) * BLAKE_THREADS_PER_BLOCK;
 
     /* The amount of memory we'll need to allocate on the GPU */
-    params.memSize = sizeof(block_g) * TRTL_MEMORY * noncesPerRun;
+    params.memSize = sizeof(block_g) * scratchpadSize * noncesPerRun;
 
     /* Init memory kernel params */
     params.initMemoryBlocks = noncesPerRun / BLAKE_THREADS_PER_BLOCK;
@@ -714,20 +715,26 @@ kernelLaunchParams getLaunchParams(
 
     params.noncesPerRun = noncesPerRun;
 
+    params.scratchpadSize = scratchpadSize;
+    params.iterations = iterations;
+
     return params;
 }
 
 /**
  * Stuff we only need to do once (unless the algorithm changes).
  */
-NvidiaState initializeState(const uint32_t gpuIndex)
+NvidiaState initializeState(
+    const uint32_t gpuIndex,
+    const size_t scratchpadSize,
+    const size_t iterations)
 {
     /* Set current device */
     ERROR_CHECK(cudaSetDevice(gpuIndex));
 
     NvidiaState state;
 
-    state.launchParams = getLaunchParams(gpuIndex);
+    state.launchParams = getLaunchParams(gpuIndex, scratchpadSize, iterations);
 
     /* Allocate memory. These things will the be the same size for every job,
        unless the algorithm changes. */
@@ -775,7 +782,8 @@ HashResult nvidiaHash(NvidiaState &state)
         state.memory,
         state.blakeInput,
         state.blakeInputSize,
-        state.localNonce
+        state.localNonce,
+        state.launchParams.scratchpadSize
     );
 
     /* Launch the second kernel to perform the main argon work */
@@ -785,8 +793,8 @@ HashResult nvidiaHash(NvidiaState &state)
         state.launchParams.argon2Cache
     >>>(
         state.memory,
-        TRTL_ITERATIONS,
-        TRTL_MEMORY / ARGON_SYNC_POINTS
+        state.launchParams.iterations,
+        state.launchParams.scratchpadSize / ARGON_SYNC_POINTS
     );
 
     /* Launch the final kernel to perform final blake round and extract
@@ -800,7 +808,8 @@ HashResult nvidiaHash(NvidiaState &state)
         state.target,
         state.nonce,
         state.hash,
-        state.hashFound
+        state.hashFound,
+        state.launchParams.scratchpadSize
     );
 
     /* Wait for kernel */
