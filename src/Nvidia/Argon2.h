@@ -92,6 +92,9 @@ struct NvidiaState
 
     /* Target hash needs to meet */
     uint64_t target;
+
+    /* Whether we should use nicehash style nonces */
+    bool isNiceHash;
 };
 
 NvidiaState initializeState(

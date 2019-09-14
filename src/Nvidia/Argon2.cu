@@ -774,6 +774,8 @@ void initJob(
 
 HashResult nvidiaHash(NvidiaState &state)
 {
+    const uint64_t nonceMask = state.isNiceHash ? 0x0000FFFFFF000000UL : 0x00FFFFFFFF000000UL;
+
     /* Launch the first kernel to perform initial blake initialization */
     initMemoryKernel<<<
         dim3(state.launchParams.initMemoryBlocks),
@@ -783,7 +785,8 @@ HashResult nvidiaHash(NvidiaState &state)
         state.blakeInput,
         state.blakeInputSize,
         state.localNonce,
-        state.launchParams.scratchpadSize
+        state.launchParams.scratchpadSize,
+        nonceMask
     );
 
     /* Launch the second kernel to perform the main argon work */
@@ -809,7 +812,8 @@ HashResult nvidiaHash(NvidiaState &state)
         state.nonce,
         state.hash,
         state.hashFound,
-        state.launchParams.scratchpadSize
+        state.launchParams.scratchpadSize,
+        state.isNiceHash
     );
 
     /* Wait for kernel */

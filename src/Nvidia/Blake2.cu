@@ -160,13 +160,16 @@ __device__ void blake2b_compress(
 }
 
 __device__ __forceinline__
-void setNonce(uint64_t *inseed, uint32_t nonce)
+void setNonce(
+    uint64_t *inseed,
+    uint32_t nonce,
+    const uint64_t nonceMask)
 {
     /* Need 64 bit to do a shift of 40 */
     uint64_t nonce64 = nonce;
 
-    /* Set byte 67-70 */
-    inseed[8] = (inseed[8] & 0xFF00000000FFFFFFUL) | (nonce64 << 24);
+    /* Set byte 68-70 or 67-70 depending on whether this is a nicehash job or not */
+    inseed[8] = inseed[8] | ((nonce64 << 24) & nonceMask);
 }
 
 __device__ 
@@ -174,7 +177,8 @@ void initial_hash(
     uint64_t *hash,
     uint64_t *inseed,
     size_t blakeInputSize,
-    uint32_t nonce)
+    uint32_t nonce,
+    const uint64_t nonceMask)
 {
     uint64_t buffer[BLAKE_QWORDS_IN_BLOCK];
 
@@ -185,7 +189,7 @@ void initial_hash(
         buffer[i] = inseed[i];
     }
 
-    setNonce(buffer, nonce);
+    setNonce(buffer, nonce, nonceMask);
 
     blake2b_compress(hash, buffer, BLAKE_BLOCK_SIZE, false);
 
@@ -203,10 +207,11 @@ void fillFirstBlock(
     uint64_t *blakeInput,
     size_t blakeInputSize,
     uint32_t nonce,
-    uint32_t block)
+    uint32_t block,
+    const uint64_t nonceMask)
 {
     uint64_t hash[8];
-    initial_hash(hash, blakeInput, blakeInputSize, nonce);
+    initial_hash(hash, blakeInput, blakeInputSize, nonce, nonceMask);
 
     uint32_t prehash_seed[BLAKE_DWORDS_IN_BLOCK];
 
@@ -324,7 +329,8 @@ void initMemoryKernel(
     uint64_t *blakeInput,
     size_t blakeInputSize,
     const uint32_t startNonce,
-    const size_t scratchpadSize)
+    const size_t scratchpadSize,
+    const uint64_t nonceMask)
 {
     uint32_t jobNumber = blockIdx.x * blockDim.x + threadIdx.x;
     uint32_t nonce = startNonce + jobNumber;
@@ -333,7 +339,7 @@ void initMemoryKernel(
     /* Find the index for the memory belonging to this GPU thread */
     block_g *threadMemory = memory + (static_cast<uint64_t>(jobNumber) * scratchpadSize + block);
 
-    fillFirstBlock(threadMemory, blakeInput, blakeInputSize, nonce, block);
+    fillFirstBlock(threadMemory, blakeInput, blakeInputSize, nonce, block, nonceMask);
 }
 
 __global__
@@ -344,7 +350,8 @@ void getNonceKernel(
     uint32_t *resultNonce,
     uint8_t *resultHash,
     bool *success,
-    const size_t scratchpadSize)
+    const size_t scratchpadSize,
+    const bool isNiceHash)
 {
     uint32_t jobNumber = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -357,9 +364,16 @@ void getNonceKernel(
     /* Valid hash, notify success and copy hash */
     if (hash[3] < target)
     {
+        uint32_t nonce = startNonce + jobNumber;
+
+        if (isNiceHash)
+        {
+            nonce = (nonce & 0x00FFFFFF) | (startNonce & 0xFF000000);
+        }
+
         /* Store the successful nonce in resultNonce if it's currently set
            to zero. */
-        uint32_t old = atomicCAS(resultNonce, 0, startNonce + jobNumber);
+        uint32_t old = atomicCAS(resultNonce, 0, nonce);
 
         /* If the returned value is zero, then this is the first thread to
            find a nonce. Lets store the corresponding hash. */
