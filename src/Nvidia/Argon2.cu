@@ -708,12 +708,10 @@ kernelLaunchParams getLaunchParams(
     params.initMemoryBlocks = noncesPerRun / BLAKE_THREADS_PER_BLOCK;
     params.initMemoryThreads = BLAKE_THREADS_PER_BLOCK;
 
-    uint32_t batchSize = 4096;
-
     params.jobsPerBlock = 16;
 
     /* Argon2 kernel params */
-    params.argon2Blocks = batchSize / params.jobsPerBlock;
+    params.argon2Blocks = noncesPerRun / params.jobsPerBlock;
     params.argon2Threads = THREADS_PER_LANE;
     params.argon2Cache = params.jobsPerBlock * sizeof(u64_shuffle_buf);
 
