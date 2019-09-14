@@ -65,16 +65,16 @@ struct NvidiaState
     /* Allocated once per algorithm */
 
     /* Scratchpad, stored on GPU */
-    block_g *memory = nullptr;
+    block_g *memory = NULL;
 
     /* Nonce, stored on GPU */
-    uint32_t *nonce = nullptr;
+    uint32_t *nonce = NULL;
 
     /* Final hash, stored on GPU */
-    uint8_t *hash = nullptr;
+    uint8_t *hash = NULL;
 
     /* Whether we found a hash, stored on GPU */
-    bool *hashFound = nullptr;
+    bool *hashFound = NULL;
 
     /* Params to launch each kernel with */
     kernelLaunchParams launchParams;
@@ -85,7 +85,7 @@ struct NvidiaState
     uint32_t blakeInputSize;
 
     /* Message + salt + argon params */
-    uint64_t *blakeInput = nullptr;
+    uint64_t *blakeInput = NULL;
 
     /* Nonce to begin hashing at */
     uint32_t localNonce;
