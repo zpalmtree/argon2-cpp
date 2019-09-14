@@ -245,24 +245,6 @@ void block_l_load_xor(
 }
 
 __device__
-uint64_t rotr64(
-    const uint64_t x,
-    const uint32_t n)
-{
-    return (x >> n) | (x << (64 - n));
-}
-
-__device__
-uint64_t f(
-    const uint64_t x,
-    const uint64_t y)
-{
-    uint32_t xlo = u64_lo(x);
-    uint32_t ylo = u64_lo(y);
-    return x + y + 2 * u64_build(__umulhi(xlo, ylo), xlo * ylo);
-}
-
-__device__
 void g(block_th *block)
 {
     asm("{"
