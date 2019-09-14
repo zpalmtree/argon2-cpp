@@ -264,26 +264,66 @@ uint64_t f(
 
 __device__ void g(block_th *block)
 {
-    uint64_t a, b, c, d;
-
-    a = block->a;
-    b = block->b;
-    c = block->c;
-    d = block->d;
-
-    a = f(a, b);
-    d = rotr64(d ^ a, 32);
-    c = f(c, d);
-    b = rotr64(b ^ c, 24);
-    a = f(a, b);
-    d = rotr64(d ^ a, 16);
-    c = f(c, d);
-    b = rotr64(b ^ c, 63);
-
-    block->a = a;
-    block->b = b;
-    block->c = c;
-    block->d = d;
+    asm("{"
+        ".reg .u64 s, x;"
+        ".reg .u32 l1, l2, h1, h2;"
+        // a = f(a, b);
+        "add.u64 s, %0, %1;"            // s = a + b
+        "cvt.u32.u64 l1, %0;"           // xlo = u64_lo(a)
+        "cvt.u32.u64 l2, %1;"           // ylo = u64_lo(b)
+        "mul.hi.u32 h1, l1, l2;"        // umulhi(xlo, ylo)
+        "mul.lo.u32 l1, l1, l2;"        // xlo * ylo
+        "mov.b64 x, {l1, h1};"          // x = u64_build(umulhi(xlo, ylo), xlo * ylo)
+        "shl.b64 x, x, 1;"              // x = 2 * x
+        "add.u64 %0, s, x;"             // a = s + x
+        // d = rotr64(d ^ a, 32);
+        "xor.b64 x, %3, %0;"
+        "mov.b64 {h2, l2}, x;"
+        "mov.b64 %3, {l2, h2};"         // swap hi and lo = rotr64(x, 32)
+        // c = f(c, d);
+        "add.u64 s, %2, %3;"
+        "cvt.u32.u64 l1, %2;"
+        "mul.hi.u32 h1, l1, l2;"
+        "mul.lo.u32 l1, l1, l2;"
+        "mov.b64 x, {l1, h1};"
+        "shl.b64 x, x, 1;"
+        "add.u64 %2, s, x;"
+        // b = rotr64(b ^ c, 24);
+        "xor.b64 x, %1, %2;"
+        "mov.b64 {l1, h1}, x;"
+        "prmt.b32 l2, l1, h1, 0x6543;"  // permute bytes 76543210 => 21076543
+        "prmt.b32 h2, l1, h1, 0x2107;"  // rotr64(x, 24)
+        "mov.b64 %1, {l2, h2};"
+        // a = f(a, b);
+        "add.u64 s, %0, %1;"
+        "cvt.u32.u64 l1, %0;"
+        "mul.hi.u32 h1, l1, l2;"
+        "mul.lo.u32 l1, l1, l2;"
+        "mov.b64 x, {l1, h1};"
+        "shl.b64 x, x, 1;"
+        "add.u64 %0, s, x;"
+        // d = rotr64(d ^ a, 16);
+        "xor.b64 x, %3, %0;"
+        "mov.b64 {l1, h1}, x;"
+        "prmt.b32 l2, l1, h1, 0x5432;"  // permute bytes 76543210 => 10765432
+        "prmt.b32 h2, l1, h1, 0x1076;"  // rotr64(x, 16)
+        "mov.b64 %3, {l2, h2};"
+        // c = f(c, d);
+        "add.u64 s, %2, %3;"
+        "cvt.u32.u64 l1, %2;"
+        "mul.hi.u32 h1, l1, l2;"
+        "mul.lo.u32 l1, l1, l2;"
+        "mov.b64 x, {l1, h1};"
+        "shl.b64 x, x, 1;"
+        "add.u64 %2, s, x;"
+        // b = rotr64(b ^ c, 63);
+        "xor.b64 x, %1, %2;"
+        "shl.b64 s, x, 1;"              // x << 1
+        "shr.b64 x, x, 63;"             // x >> 63
+        "add.u64 %1, s, x;"             // emits less instructions than "or"
+        "}"
+        : "+l"(block->a), "+l"(block->b), "+l"(block->c), "+l"(block->d)
+    );
 }
 
 template<class shuffle>
