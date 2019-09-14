@@ -330,10 +330,10 @@ __device__ void shuffle_block(struct block_th *block, uint32_t thread,
 __device__ void argon2_core(
         struct block_g *memory, struct block_g *mem_curr,
         struct block_th *prev, struct block_th *tmp,
-        struct u64_shuffle_buf *shuffle_buf, uint32_t lanes,
+        struct u64_shuffle_buf *shuffle_buf,
         uint32_t thread, uint32_t pass, uint32_t ref_index, uint32_t ref_lane)
 {
-    struct block_g *mem_ref = memory + ref_index * lanes + ref_lane;
+    struct block_g *mem_ref = memory + ref_index + ref_lane;
 
     if (pass != 0) {
         load_block(tmp, mem_curr, thread);
@@ -371,28 +371,22 @@ __device__ void next_addresses(struct block_th *addr, struct block_th *tmp,
 }
 
 __device__ void compute_ref_pos(
-        uint32_t lanes, uint32_t segment_blocks,
-        uint32_t pass, uint32_t lane, uint32_t slice, uint32_t offset,
+        uint32_t segment_blocks,
+        uint32_t pass, uint32_t slice, uint32_t offset,
         uint32_t *ref_lane, uint32_t *ref_index)
 {
     uint32_t lane_blocks = ARGON_SYNC_POINTS * segment_blocks;
 
-    *ref_lane = *ref_lane % lanes;
+    *ref_lane = 0;
 
     uint32_t base;
     if (pass != 0) {
         base = lane_blocks - segment_blocks;
     } else {
-        if (slice == 0) {
-            *ref_lane = lane;
-        }
         base = slice * segment_blocks;
     }
 
     uint32_t ref_area_size = base + offset - 1;
-    if (*ref_lane != lane) {
-        ref_area_size = min(ref_area_size, base);
-    }
 
     *ref_index = __umulhi(*ref_index, *ref_index);
     *ref_index = ref_area_size - 1 - __umulhi(ref_area_size, *ref_index);
@@ -408,9 +402,9 @@ __device__ void compute_ref_pos(
 __device__ void argon2_step(
         struct block_g *memory, struct block_g *mem_curr,
         struct block_th *prev, struct block_th *tmp, struct block_th *addr,
-        struct u64_shuffle_buf *shuffle_buf, uint32_t lanes,
+        struct u64_shuffle_buf *shuffle_buf,
         uint32_t segment_blocks, uint32_t thread, uint32_t *thread_input,
-        uint32_t lane, uint32_t pass, uint32_t slice, uint32_t offset)
+        uint32_t pass, uint32_t slice, uint32_t offset)
 {
     uint32_t ref_index, ref_lane;
 
@@ -436,41 +430,38 @@ __device__ void argon2_step(
         ref_lane  = u64_hi(v);
     }
 
-    compute_ref_pos(lanes, segment_blocks, pass, lane, slice, offset,
+    compute_ref_pos(segment_blocks, pass, slice, offset,
                     &ref_lane, &ref_index);
 
     argon2_core(
-        memory, mem_curr, prev, tmp, shuffle_buf, lanes,
+        memory, mem_curr, prev, tmp, shuffle_buf,
         thread, pass, ref_index, ref_lane
     );
 }
 
-__global__ void argon2_kernel_oneshot(
-        struct block_g *memory, uint32_t passes, uint32_t lanes,
-        uint32_t segment_blocks)
+__global__ void argon2Kernel(
+    struct block_g *memory,
+    uint32_t passes,
+    uint32_t segment_blocks)
 {
     extern __shared__ struct u64_shuffle_buf shuffle_bufs[];
     struct u64_shuffle_buf *shuffle_buf =
-            &shuffle_bufs[lanes * threadIdx.z + threadIdx.y];
+            &shuffle_bufs[threadIdx.z + threadIdx.y];
 
     uint32_t job_id = blockIdx.z * blockDim.z + threadIdx.z;
-    uint32_t lane   = threadIdx.y;
     uint32_t thread = threadIdx.x;
 
     uint32_t lane_blocks = ARGON_SYNC_POINTS * segment_blocks;
 
     /* select job's memory region: */
-    memory += (size_t)job_id * lanes * lane_blocks;
+    memory += (size_t)job_id * lane_blocks;
 
     struct block_th prev, addr, tmp;
     uint32_t thread_input;
 
     switch (thread) {
-    case 1:
-        thread_input = lane;
-        break;
     case 3:
-        thread_input = lanes * lane_blocks;
+        thread_input = lane_blocks;
         break;
     case 4:
         thread_input = passes;
@@ -490,9 +481,9 @@ __global__ void argon2_kernel_oneshot(
         next_addresses(&addr, &tmp, thread_input, thread, shuffle_buf);
     }
 
-    struct block_g *mem_lane = memory + lane;
-    struct block_g *mem_prev = mem_lane + 1 * lanes;
-    struct block_g *mem_curr = mem_lane + 2 * lanes;
+    struct block_g *mem_lane = memory;
+    struct block_g *mem_prev = mem_lane + 1;
+    struct block_g *mem_curr = mem_lane + 2;
 
     load_block(&prev, mem_prev, thread);
 
@@ -507,11 +498,11 @@ __global__ void argon2_kernel_oneshot(
 
                 argon2_step(
                     memory, mem_curr, &prev, &tmp, &addr, shuffle_buf,
-                    lanes, segment_blocks, thread, &thread_input,
-                    lane, pass, slice, offset
+                    segment_blocks, thread, &thread_input,
+                    pass, slice, offset
                 );
 
-                mem_curr += lanes;
+                mem_curr++;
             }
 
             __syncthreads();
@@ -634,14 +625,13 @@ HashResult nvidiaHash(NvidiaState &state)
     );
 
     /* Launch the second kernel to perform the main argon work */
-    argon2_kernel_oneshot<<<
+    argon2Kernel<<<
         dim3(1, 1, state.launchParams.argon2Blocks),
         dim3(state.launchParams.argon2Threads, 1, state.launchParams.jobsPerBlock),
         state.launchParams.argon2Cache
     >>>(
         state.memory,
         TRTL_ITERATIONS,
-        1,
         TRTL_MEMORY / ARGON_SYNC_POINTS
     );
 
