@@ -11,6 +11,7 @@ target_compile_features(Nvidia PUBLIC cxx_std_11)
 
 set_target_properties(Nvidia PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
 set_target_properties(Nvidia PROPERTIES CUDA_STANDARD 11)
+set_target_properties(Nvidia PROPERTIES CUDA_RESOLVE_DEVICE_SYMBOLS ON)
 
 # Makes cuda-memcheck, cuda-gdb, etc, much more helpful
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
