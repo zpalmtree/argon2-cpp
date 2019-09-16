@@ -35,15 +35,6 @@ __constant__ static const uint8_t sigma[12][16] =
     { 14, 10, 4,  8,  9,  15, 13, 6,  1,  12, 0,  2,  11, 7,  5,  3  },
 };
 
-struct __attribute__((packed)) prehash_seed
-{
-    uint32_t hashlen;
-    uint64_t initial_hash[8];
-    uint32_t block;
-    uint32_t lane;
-    uint32_t padding[13];
-};
-
 __device__ __forceinline__
 uint64_t rotr64(uint64_t x, uint32_t n)
 {
