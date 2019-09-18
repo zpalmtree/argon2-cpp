@@ -678,42 +678,47 @@ void argon2Kernel(
 kernelLaunchParams getLaunchParams(
     const uint32_t gpuIndex,
     const size_t scratchpadSize,
-    const size_t iterations)
+    const size_t iterations,
+    const uint32_t attempt)
 {
     kernelLaunchParams params;
 
-    cudaDeviceProp properties;
+    size_t free;
+    size_t total;
 
-    /* Figure out how much memory we have available */
-    cudaGetDeviceProperties(&properties, gpuIndex);
+    cudaMemGetInfo(&free, &total);
 
-    const size_t ONE_MB = 1024 * 1024;
-    const size_t ONE_GB = ONE_MB * 1024;
+    size_t memoryPerHash = sizeof(block_g) * scratchpadSize;
 
-    size_t memoryAvailable = (properties.totalGlobalMem / ONE_GB - 1) * (ONE_GB / ONE_MB);
+    /* Make it a multiple of memoryPerHash */
+    size_t memoryAvailable = free - (free % memoryPerHash);
+
+    /* Failed to allocate memory - lets try allocating a bit less. */
+    if (attempt != 0)
+    {
+        memoryAvailable = memoryAvailable - (10 * attempt * memoryPerHash);
+    }
 
     /* The amount of nonces we're going to try per kernel launch */
-    uint32_t noncesPerRun = (memoryAvailable * ONE_MB) / (sizeof(block_g) * scratchpadSize);
-    noncesPerRun = (noncesPerRun / BLAKE_THREADS_PER_BLOCK) * BLAKE_THREADS_PER_BLOCK;
+    params.noncesPerRun = memoryAvailable / memoryPerHash;
+    params.noncesPerRun = (params.noncesPerRun / BLAKE_THREADS_PER_BLOCK) * BLAKE_THREADS_PER_BLOCK;
 
     /* The amount of memory we'll need to allocate on the GPU */
-    params.memSize = sizeof(block_g) * scratchpadSize * noncesPerRun;
+    params.memSize = memoryPerHash * params.noncesPerRun;
 
     /* Init memory kernel params */
-    params.initMemoryBlocks = dim3(noncesPerRun / BLAKE_THREADS_PER_BLOCK);
+    params.initMemoryBlocks = dim3(params.noncesPerRun / BLAKE_THREADS_PER_BLOCK);
     params.initMemoryThreads = dim3(BLAKE_THREADS_PER_BLOCK, 2);
 
     params.jobsPerBlock = 16;
 
     /* Argon2 kernel params */
-    params.argon2Blocks = dim3(1, 1, noncesPerRun / params.jobsPerBlock);
+    params.argon2Blocks = dim3(1, 1, params.noncesPerRun / params.jobsPerBlock);
     params.argon2Threads = dim3(THREADS_PER_LANE, 1, params.jobsPerBlock);
     params.argon2Cache = params.jobsPerBlock * sizeof(u64_shuffle_buf);
 
-    params.getNonceBlocks = noncesPerRun / BLAKE_THREADS_PER_BLOCK;
+    params.getNonceBlocks = params.noncesPerRun / BLAKE_THREADS_PER_BLOCK;
     params.getNonceThreads = BLAKE_THREADS_PER_BLOCK;
-
-    params.noncesPerRun = noncesPerRun;
 
     params.scratchpadSize = scratchpadSize;
     params.iterations = iterations;
@@ -727,7 +732,8 @@ kernelLaunchParams getLaunchParams(
 NvidiaState initializeState(
     const uint32_t gpuIndex,
     const size_t scratchpadSize,
-    const size_t iterations)
+    const size_t iterations,
+    uint32_t attempt)
 {
     /* Set current device */
     ERROR_CHECK(cudaSetDevice(gpuIndex));
@@ -742,18 +748,59 @@ NvidiaState initializeState(
 
     ERROR_CHECK(cudaStreamCreate(&state.stream));
 
-    state.launchParams = getLaunchParams(gpuIndex, scratchpadSize, iterations);
+    state.launchParams = getLaunchParams(gpuIndex, scratchpadSize, iterations, attempt);
+
+    cudaError_t memoryError = cudaSuccess;
 
     /* Allocate memory. These things will the be the same size for every job,
        unless the algorithm changes. */
-    ERROR_CHECK(cudaMalloc((void **)&state.memory, state.launchParams.memSize));
-    ERROR_CHECK(cudaMalloc((void **)&state.nonce, sizeof(uint32_t)));
-    ERROR_CHECK(cudaMalloc((void **)&state.hash, ARGON_HASH_LENGTH));
-    ERROR_CHECK(cudaMalloc((void **)&state.hashFound, sizeof(bool)));
-    ERROR_CHECK(cudaMalloc((void **)&state.blakeInput, BLAKE_BLOCK_SIZE * 2));
+    memoryError = cudaMalloc((void **)&state.memory, state.launchParams.memSize);
+
+    if (memoryError == cudaErrorMemoryAllocation)
+    {
+        freeState(state);
+        return initializeState(gpuIndex, scratchpadSize, iterations, ++attempt);
+    }
+
+    memoryError = cudaMalloc((void **)&state.nonce, sizeof(uint32_t));
+
+    if (memoryError == cudaErrorMemoryAllocation)
+    {
+        freeState(state);
+        return initializeState(gpuIndex, scratchpadSize, iterations, ++attempt);
+    }
+
+    memoryError = cudaMalloc((void **)&state.hash, ARGON_HASH_LENGTH);
+
+    if (memoryError == cudaErrorMemoryAllocation)
+    {
+        freeState(state);
+        return initializeState(gpuIndex, scratchpadSize, iterations, ++attempt);
+    }
+
+    memoryError = cudaMalloc((void **)&state.hashFound, sizeof(bool));
+
+    if (memoryError == cudaErrorMemoryAllocation)
+    {
+        freeState(state);
+        return initializeState(gpuIndex, scratchpadSize, iterations, ++attempt);
+    }
+
+    memoryError = cudaMalloc((void **)&state.blakeInput, BLAKE_BLOCK_SIZE * 2);
+
+    if (memoryError == cudaErrorMemoryAllocation)
+    {
+        freeState(state);
+        return initializeState(gpuIndex, scratchpadSize, iterations, ++attempt);
+    }
 
     ERROR_CHECK(cudaMemsetAsync(state.hashFound, false, sizeof(bool), state.stream));
     ERROR_CHECK(cudaMemsetAsync(state.nonce, 0, sizeof(uint32_t), state.stream));
+
+    std::cout << "Allocating " << (static_cast<double>(state.launchParams.memSize) / (1024 * 1024 * 1024)) 
+              << "GB of GPU memory." << std::endl
+              << "Performing " << state.launchParams.noncesPerRun << " iterations per kernel launch, with "
+              << state.launchParams.jobsPerBlock << " jobs per block." << std::endl;
 
     return state;
 }
@@ -776,12 +823,9 @@ void initJob(
     NvidiaState &state,
     const std::vector<uint8_t> &input,
     const std::vector<uint8_t> &saltInput,
-    const uint32_t localNonce,
     const uint64_t target)
 {
-    state.localNonce = localNonce;
     state.target = target;
-
     setupBlakeInput(input, saltInput, state);
 }
 
@@ -831,7 +875,8 @@ HashResult nvidiaHash(NvidiaState &state)
         state.hash,
         state.hashFound,
         state.launchParams.scratchpadSize,
-        state.isNiceHash
+        state.isNiceHash,
+        state.blakeInput
     );
 
     /* Wait for kernel */

@@ -342,7 +342,8 @@ void getNonceKernel(
     uint8_t *resultHash,
     bool *success,
     const size_t scratchpadSize,
-    const bool isNiceHash)
+    const bool isNiceHash,
+    const uint64_t *blakeInput)
 {
     uint32_t jobNumber = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -355,11 +356,13 @@ void getNonceKernel(
     /* Valid hash, notify success and copy hash */
     if (hash[3] < target)
     {
+        uint32_t storedNonce = static_cast<uint32_t>(blakeInput[8] >> 24);
+
         uint32_t nonce = startNonce + jobNumber;
 
         if (isNiceHash)
         {
-            nonce = (nonce & 0x00FFFFFF) | (startNonce & 0xFF000000);
+            nonce = (nonce & 0x00FFFFFF) | (storedNonce & 0xFF000000);
         }
 
         /* Store the successful nonce in resultNonce if it's currently set

@@ -26,7 +26,8 @@ void getNonceKernel(
     uint8_t *resultHash,
     bool *success,
     const size_t scratchpadSize,
-    const bool isNiceHash);
+    const bool isNiceHash,
+    const uint64_t *blakeInput);
 
 void setupBlakeInput(
     const std::vector<uint8_t> &input,

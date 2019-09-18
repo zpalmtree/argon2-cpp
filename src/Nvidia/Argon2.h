@@ -105,7 +105,8 @@ struct NvidiaState
 NvidiaState initializeState(
     const uint32_t gpuIndex,
     const size_t scratchpadSize,
-    const size_t iterations);
+    const size_t iterations,
+    uint32_t attempt = 0);
 
 void freeState(NvidiaState &state);
 
@@ -113,7 +114,6 @@ void initJob(
     NvidiaState &state,
     const std::vector<uint8_t> &input,
     const std::vector<uint8_t> &saltInput,
-    const uint32_t localNonce,
     const uint64_t target);
 
 HashResult nvidiaHash(NvidiaState &state);
