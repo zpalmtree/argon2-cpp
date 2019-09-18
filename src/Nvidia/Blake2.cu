@@ -461,5 +461,5 @@ void setupBlakeInput(
     index += sizeof(dataSize);
 
     /* Copy over the input data */
-    ERROR_CHECK(cudaMemcpy(state.blakeInput, &initialInput[0], BLAKE_BLOCK_SIZE * 2, cudaMemcpyHostToDevice));
+    ERROR_CHECK(cudaMemcpyAsync(state.blakeInput, &initialInput[0], BLAKE_BLOCK_SIZE * 2, cudaMemcpyHostToDevice, state.stream));
 }

@@ -752,8 +752,8 @@ NvidiaState initializeState(
     ERROR_CHECK(cudaMalloc((void **)&state.hashFound, sizeof(bool)));
     ERROR_CHECK(cudaMalloc((void **)&state.blakeInput, BLAKE_BLOCK_SIZE * 2));
 
-    ERROR_CHECK(cudaMemset(state.hashFound, false, sizeof(bool)));
-    ERROR_CHECK(cudaMemset(state.nonce, 0, sizeof(uint32_t)));
+    ERROR_CHECK(cudaMemsetAsync(state.hashFound, false, sizeof(bool), state.stream));
+    ERROR_CHECK(cudaMemsetAsync(state.nonce, 0, sizeof(uint32_t), state.stream));
 
     return state;
 }
@@ -850,8 +850,8 @@ HashResult nvidiaHash(NvidiaState &state)
 
         /* Clear the hash found flag so don't think we have found a share when we
            have not, along with the nonce */
-        ERROR_CHECK(cudaMemset(state.hashFound, false, sizeof(bool)));
-        ERROR_CHECK(cudaMemset(state.nonce, 0, sizeof(uint32_t)));
+        ERROR_CHECK(cudaMemsetAsync(state.hashFound, false, sizeof(bool), state.stream));
+        ERROR_CHECK(cudaMemsetAsync(state.nonce, 0, sizeof(uint32_t), state.stream));
     }
     
     return result;
