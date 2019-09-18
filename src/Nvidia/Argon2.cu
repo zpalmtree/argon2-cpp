@@ -700,14 +700,14 @@ kernelLaunchParams getLaunchParams(
     params.memSize = sizeof(block_g) * scratchpadSize * noncesPerRun;
 
     /* Init memory kernel params */
-    params.initMemoryBlocks = noncesPerRun / BLAKE_THREADS_PER_BLOCK;
-    params.initMemoryThreads = BLAKE_THREADS_PER_BLOCK;
+    params.initMemoryBlocks = dim3(noncesPerRun / BLAKE_THREADS_PER_BLOCK);
+    params.initMemoryThreads = dim3(BLAKE_THREADS_PER_BLOCK, 2);
 
     params.jobsPerBlock = 16;
 
     /* Argon2 kernel params */
-    params.argon2Blocks = noncesPerRun / params.jobsPerBlock;
-    params.argon2Threads = THREADS_PER_LANE;
+    params.argon2Blocks = dim3(1, 1, noncesPerRun / params.jobsPerBlock);
+    params.argon2Threads = dim3(THREADS_PER_LANE, 1, params.jobsPerBlock);
     params.argon2Cache = params.jobsPerBlock * sizeof(u64_shuffle_buf);
 
     params.getNonceBlocks = noncesPerRun / BLAKE_THREADS_PER_BLOCK;
@@ -732,7 +732,15 @@ NvidiaState initializeState(
     /* Set current device */
     ERROR_CHECK(cudaSetDevice(gpuIndex));
 
+    /* Reset, otherwise stream creation will fail */
+    ERROR_CHECK(cudaDeviceReset());
+
+    /* Don't block CPU execution waiting for kernel to finish */
+    ERROR_CHECK(cudaSetDeviceFlags(cudaDeviceScheduleBlockingSync));
+
     NvidiaState state;
+
+    ERROR_CHECK(cudaStreamCreate(&state.stream));
 
     state.launchParams = getLaunchParams(gpuIndex, scratchpadSize, iterations);
 
@@ -757,6 +765,11 @@ void freeState(NvidiaState &state)
     ERROR_CHECK(cudaFree(state.hash));
     ERROR_CHECK(cudaFree(state.hashFound));
     ERROR_CHECK(cudaFree(state.blakeInput));
+
+    if (state.stream != nullptr)
+    {
+        ERROR_CHECK(cudaStreamDestroy(state.stream));
+    }
 }
 
 void initJob(
@@ -778,8 +791,10 @@ HashResult nvidiaHash(NvidiaState &state)
 
     /* Launch the first kernel to perform initial blake initialization */
     initMemoryKernel<<<
-        dim3(state.launchParams.initMemoryBlocks),
-        dim3(state.launchParams.initMemoryThreads, 2)
+        state.launchParams.initMemoryBlocks,
+        state.launchParams.initMemoryThreads,
+        0, /* No shared memory */
+        state.stream
     >>>(
         state.memory,
         state.blakeInput,
@@ -791,9 +806,10 @@ HashResult nvidiaHash(NvidiaState &state)
 
     /* Launch the second kernel to perform the main argon work */
     argon2Kernel<<<
-        dim3(1, 1, state.launchParams.argon2Blocks),
-        dim3(state.launchParams.argon2Threads, 1, state.launchParams.jobsPerBlock),
-        state.launchParams.argon2Cache
+        state.launchParams.argon2Blocks,
+        state.launchParams.argon2Threads,
+        state.launchParams.argon2Cache,
+        state.stream
     >>>(
         state.memory,
         state.launchParams.iterations,
@@ -803,8 +819,10 @@ HashResult nvidiaHash(NvidiaState &state)
     /* Launch the final kernel to perform final blake round and extract
        nonce that beats the target, if any */
     getNonceKernel<<<
-        dim3(state.launchParams.getNonceBlocks),
-        dim3(state.launchParams.getNonceThreads)
+        state.launchParams.getNonceBlocks,
+        state.launchParams.getNonceThreads,
+        0, /* No shared memory */
+        state.stream
     >>>(
         state.memory,
         state.localNonce,
@@ -817,8 +835,7 @@ HashResult nvidiaHash(NvidiaState &state)
     );
 
     /* Wait for kernel */
-    ERROR_CHECK(cudaPeekAtLastError());
-    ERROR_CHECK(cudaDeviceSynchronize());
+    ERROR_CHECK(cudaStreamSynchronize(state.stream));
 
     HashResult result;
 

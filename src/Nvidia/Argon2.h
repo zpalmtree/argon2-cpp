@@ -6,6 +6,9 @@
 
 #include <vector>
 
+#include <cuda.h>
+#include <cuda_runtime.h>
+
 const size_t ARGON_BLOCK_SIZE = 1024;
 const size_t ARGON_QWORDS_IN_BLOCK = ARGON_BLOCK_SIZE / 8;
 const size_t ARGON_HASH_LENGTH = 32;
@@ -42,15 +45,15 @@ struct kernelLaunchParams
 {
     size_t memSize;
 
-    size_t initMemoryBlocks;
-    size_t initMemoryThreads;
+    dim3 initMemoryBlocks;
+    dim3 initMemoryThreads;
 
-    size_t argon2Blocks;
-    size_t argon2Threads;
+    dim3 argon2Blocks;
+    dim3 argon2Threads;
     size_t argon2Cache;
 
-    size_t getNonceBlocks;
-    size_t getNonceThreads;
+    dim3 getNonceBlocks;
+    dim3 getNonceThreads;
 
     size_t noncesPerRun;
 
@@ -95,6 +98,8 @@ struct NvidiaState
 
     /* Whether we should use nicehash style nonces */
     bool isNiceHash;
+
+    cudaStream_t stream = NULL;
 };
 
 NvidiaState initializeState(
