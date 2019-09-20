@@ -822,7 +822,7 @@ void freeState(NvidiaState &state)
     ERROR_CHECK(cudaFree(state.hashFound));
     ERROR_CHECK(cudaFree(state.blakeInput));
 
-    if (state.stream != nullptr)
+    if (state.stream != NULL)
     {
         ERROR_CHECK(cudaStreamDestroy(state.stream));
     }
