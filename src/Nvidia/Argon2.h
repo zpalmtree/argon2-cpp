@@ -106,6 +106,7 @@ NvidiaState initializeState(
     const uint32_t gpuIndex,
     const size_t scratchpadSize,
     const size_t iterations,
+    const float intensity,
     uint32_t attempt = 0);
 
 void freeState(NvidiaState &state);

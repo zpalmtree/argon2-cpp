@@ -679,7 +679,8 @@ kernelLaunchParams getLaunchParams(
     const uint32_t gpuIndex,
     const size_t scratchpadSize,
     const size_t iterations,
-    const uint32_t attempt)
+    const uint32_t attempt,
+    const float intensity)
 {
     kernelLaunchParams params;
 
@@ -698,6 +699,9 @@ kernelLaunchParams getLaunchParams(
     {
         memoryAvailable = memoryAvailable - (10 * attempt * memoryPerHash);
     }
+
+    /* Cut threads / memory by intensity percentage. Defaults to 100. */
+    memoryAvailable = memoryAvailable * (intensity / 100);
 
     /* The amount of nonces we're going to try per kernel launch */
     params.noncesPerRun = memoryAvailable / memoryPerHash;
@@ -733,8 +737,11 @@ NvidiaState initializeState(
     const uint32_t gpuIndex,
     const size_t scratchpadSize,
     const size_t iterations,
+    const float intensity,
     uint32_t attempt)
 {
+    const float nextAttempt = attempt == 0 ? 1 : attempt * 2;
+
     /* Set current device */
     ERROR_CHECK(cudaSetDevice(gpuIndex));
 
@@ -748,7 +755,7 @@ NvidiaState initializeState(
 
     ERROR_CHECK(cudaStreamCreate(&state.stream));
 
-    state.launchParams = getLaunchParams(gpuIndex, scratchpadSize, iterations, attempt);
+    state.launchParams = getLaunchParams(gpuIndex, scratchpadSize, iterations, attempt, intensity);
 
     cudaError_t memoryError = cudaSuccess;
 
@@ -759,7 +766,7 @@ NvidiaState initializeState(
     if (memoryError == cudaErrorMemoryAllocation)
     {
         freeState(state);
-        return initializeState(gpuIndex, scratchpadSize, iterations, ++attempt);
+        return initializeState(gpuIndex, scratchpadSize, iterations, intensity, nextAttempt);
     }
 
     memoryError = cudaMalloc((void **)&state.nonce, sizeof(uint32_t));
@@ -767,7 +774,7 @@ NvidiaState initializeState(
     if (memoryError == cudaErrorMemoryAllocation)
     {
         freeState(state);
-        return initializeState(gpuIndex, scratchpadSize, iterations, ++attempt);
+        return initializeState(gpuIndex, scratchpadSize, iterations, intensity, nextAttempt);
     }
 
     memoryError = cudaMalloc((void **)&state.hash, ARGON_HASH_LENGTH);
@@ -775,7 +782,7 @@ NvidiaState initializeState(
     if (memoryError == cudaErrorMemoryAllocation)
     {
         freeState(state);
-        return initializeState(gpuIndex, scratchpadSize, iterations, ++attempt);
+        return initializeState(gpuIndex, scratchpadSize, iterations, intensity, nextAttempt);
     }
 
     memoryError = cudaMalloc((void **)&state.hashFound, sizeof(bool));
@@ -783,7 +790,7 @@ NvidiaState initializeState(
     if (memoryError == cudaErrorMemoryAllocation)
     {
         freeState(state);
-        return initializeState(gpuIndex, scratchpadSize, iterations, ++attempt);
+        return initializeState(gpuIndex, scratchpadSize, iterations, intensity, nextAttempt);
     }
 
     memoryError = cudaMalloc((void **)&state.blakeInput, BLAKE_BLOCK_SIZE * 2);
@@ -791,15 +798,17 @@ NvidiaState initializeState(
     if (memoryError == cudaErrorMemoryAllocation)
     {
         freeState(state);
-        return initializeState(gpuIndex, scratchpadSize, iterations, ++attempt);
+        return initializeState(gpuIndex, scratchpadSize, iterations, intensity, nextAttempt);
     }
 
     ERROR_CHECK(cudaMemsetAsync(state.hashFound, false, sizeof(bool), state.stream));
     ERROR_CHECK(cudaMemsetAsync(state.nonce, 0, sizeof(uint32_t), state.stream));
 
-    std::cout << "Allocating " << (static_cast<double>(state.launchParams.memSize) / (1024 * 1024 * 1024)) 
+    std::cout << "GPU " << gpuIndex << "| Allocating "
+              << (static_cast<double>(state.launchParams.memSize) / (1024 * 1024 * 1024)) 
               << "GB of GPU memory." << std::endl
-              << "Performing " << state.launchParams.noncesPerRun << " iterations per kernel launch, with "
+              << "GPU " << gpuIndex << "| Performing "
+              << state.launchParams.noncesPerRun << " iterations per kernel launch, with "
               << state.launchParams.jobsPerBlock << " jobs per block." << std::endl;
 
     return state;
