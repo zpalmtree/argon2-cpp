@@ -26,9 +26,9 @@
 // Please see the included LICENSE file for more information.
 
 #include <cstring>
+#include <iostream>
 #include <stdint.h>
 #include <string>
-#include <iostream>
 #include <vector>
 
 #include "Argon2.h"
@@ -804,14 +804,7 @@ NvidiaState initializeState(
 
     ERROR_CHECK(cudaMemsetAsync(state.hashFound, false, sizeof(bool), state.stream));
     ERROR_CHECK(cudaMemsetAsync(state.nonce, 0, sizeof(uint32_t), state.stream));
-
-    std::cout << "GPU " << gpuIndex << "| Allocating "
-              << (static_cast<double>(state.launchParams.memSize) / (1024 * 1024 * 1024)) 
-              << "GB of GPU memory." << std::endl
-              << "GPU " << gpuIndex << "| Performing "
-              << state.launchParams.noncesPerRun << " iterations per kernel launch, with "
-              << state.launchParams.jobsPerBlock << " jobs per block." << std::endl;
-
+    
     return state;
 }
 
