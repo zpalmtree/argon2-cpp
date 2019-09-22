@@ -3,6 +3,8 @@ cmake_minimum_required(VERSION 3.8)
 
 project(argon2-cpp)
 
+option(ENABLE_NVIDIA "Enable Nvidia support" ON)
+
 # Assert our compiler is good
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     # GCC 7.0 or higher
