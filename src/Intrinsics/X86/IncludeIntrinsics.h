@@ -5,7 +5,6 @@
 #pragma once
 
 #if defined(_MSC_VER)
-    #pragma message("Including <intrin.h>")
     /* Microsoft C/C++-compatible compiler */
     #include <intrin.h>
 #elif defined(__GNUC__) && (defined(__x86_64__) || defined(__i386__))
