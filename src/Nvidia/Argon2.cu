@@ -321,9 +321,15 @@ __device__ void transpose(
     uint64_t x2 = (g2 ? (g1 ? block->b : block->a) : (g1 ? block->d : block->c));
     uint64_t x3 = (g2 ? (g1 ? block->a : block->b) : (g1 ? block->c : block->d));
 
+    #if CUDART_VERSION < 9000
+    x1 = __shfl_xor(x1, 0x4);
+    x2 = __shfl_xor(x2, 0x8);
+    x3 = __shfl_xor(x3, 0xC);
+    #else
     x1 = __shfl_xor_sync(0xFFFFFFFF, x1, 0x4);
     x2 = __shfl_xor_sync(0xFFFFFFFF, x2, 0x8);
     x3 = __shfl_xor_sync(0xFFFFFFFF, x3, 0xC);
+    #endif
 
     block->a = (g2 ? (g1 ? x3 : x2) : (g1 ? x1 : block->a));
     block->b = (g2 ? (g1 ? x2 : x3) : (g1 ? block->b : x1));
@@ -339,9 +345,15 @@ void shift1_shuffle(
     const uint32_t src_thr_b = (thread & 0x1c) | ((thread + 1) & 0x3);
     const uint32_t src_thr_d = (thread & 0x1c) | ((thread + 3) & 0x3);
 
+    #if CUDART_VERSION < 9000
+    block->b = __shfl(block->b, src_thr_b);
+    block->c = __shfl_xor(block->c, 0x2);
+    block->d = __shfl(block->d, src_thr_d);
+    #else
     block->b = __shfl_sync(0xFFFFFFFF, block->b, src_thr_b);
     block->c = __shfl_xor_sync(0xFFFFFFFF, block->c, 0x2);
     block->d = __shfl_sync(0xFFFFFFFF, block->d, src_thr_d);
+    #endif
 }
 
 __device__
@@ -352,9 +364,15 @@ void unshift1_shuffle(
     const uint32_t src_thr_b = (thread & 0x1c) | ((thread + 3) & 0x3);
     const uint32_t src_thr_d = (thread & 0x1c) | ((thread + 1) & 0x3);
 
+    #if CUDART_VERSION < 9000
+    block->b = __shfl(block->b, src_thr_b);
+    block->c = __shfl_xor(block->c, 0x2);
+    block->d = __shfl(block->d, src_thr_d);
+    #else
     block->b = __shfl_sync(0xFFFFFFFF, block->b, src_thr_b);
     block->c = __shfl_xor_sync(0xFFFFFFFF, block->c, 0x2);
     block->d = __shfl_sync(0xFFFFFFFF, block->d, src_thr_d);
+    #endif
 }
 
 __device__
@@ -366,9 +384,15 @@ void shift2_shuffle(
     const uint32_t src_thr_b = (((lo + 1) & 0x2) << 3) | (thread & 0xe) | ((lo + 1) & 0x1);
     const uint32_t src_thr_d = (((lo + 3) & 0x2) << 3) | (thread & 0xe) | ((lo + 3) & 0x1);
 
+    #if CUDART_VERSION < 9000
+    block->b = __shfl(block->b, src_thr_b);
+    block->c = __shfl_xor(block->c, 0x10);
+    block->d = __shfl(block->d, src_thr_d);
+    #else
     block->b = __shfl_sync(0xFFFFFFFF, block->b, src_thr_b);
     block->c = __shfl_xor_sync(0xFFFFFFFF, block->c, 0x10);
     block->d = __shfl_sync(0xFFFFFFFF, block->d, src_thr_d);
+    #endif
 }
 
 __device__
@@ -380,9 +404,15 @@ void unshift2_shuffle(
     const uint32_t src_thr_b = (((lo + 3) & 0x2) << 3) | (thread & 0xe) | ((lo + 3) & 0x1);
     const uint32_t src_thr_d = (((lo + 1) & 0x2) << 3) | (thread & 0xe) | ((lo + 1) & 0x1);
 
+    #if CUDART_VERSION < 9000
+    block->b = __shfl(block->b, src_thr_b);
+    block->c = __shfl_xor(block->c, 0x10);
+    block->d = __shfl(block->d, src_thr_d);
+    #else
     block->b = __shfl_sync(0xFFFFFFFF, block->b, src_thr_b);
     block->c = __shfl_xor_sync(0xFFFFFFFF, block->c, 0x10);
     block->d = __shfl_sync(0xFFFFFFFF, block->d, src_thr_d);
+    #endif
 }
 
 __device__ void shuffle_block(
