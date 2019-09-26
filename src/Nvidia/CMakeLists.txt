@@ -24,6 +24,7 @@ else()
 endif()
 
 set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Xcompiler -c 
+    --generate-code=arch=compute_30,code=sm_30
     --generate-code=arch=compute_35,code=sm_35
     --generate-code=arch=compute_35,code=compute_35
     --generate-code=arch=compute_61,code=sm_61
