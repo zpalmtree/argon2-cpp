@@ -1,9 +1,14 @@
 # We need 3.8 for set(CMAKE_CXX_STANDARD 17)
 cmake_minimum_required(VERSION 3.8)
 
-project(argon2-cpp)
+project(argon2-cpp LANGUAGES CXX)
 
 option(ENABLE_NVIDIA "Enable Nvidia support" ON)
+option(NVIDIA_ARCH "Nvidia architectures to compile for" "10 13 20 30 35 37 50 52 60 61 70 72 75")
+
+if (ENABLE_NVIDIA)
+    enable_language(CUDA)
+endif()
 
 # Assert our compiler is good
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
@@ -60,4 +65,32 @@ add_subdirectory(src)
 
 if (${BUILD_TESTS})
     add_subdirectory(tests)
+endif()
+
+if (ENABLE_NVIDIA)
+    list(APPEND NVIDIA_TARGETS Nvidia)
+
+    foreach(target ${NVIDIA_TARGETS})
+        message(STATUS ${target})
+        target_compile_features(${target} PUBLIC cxx_std_11)
+    endforeach()
+
+    set_target_properties(${NVIDIA_TARGETS}
+                          PROPERTIES
+                          CUDA_ARCHITECTURES "${NVIDIA_ARCH}"
+                          CUDA_SEPARABLE_COMPILATION ON
+                          CUDA_STANDARD 11)
+
+    if (MSVC)
+        set_target_properties(${NVIDIA_TARGETS}
+                              PROPERTIES
+                              CUDA_RESOLVE_DEVICE_SYMBOLS ON)
+    endif()
+
+    # Makes cuda-memcheck, cuda-gdb, etc, much more helpful
+    if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+        set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -g -G")
+    else()
+        set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -O3")
+    endif()
 endif()
