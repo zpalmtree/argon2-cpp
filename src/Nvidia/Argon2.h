@@ -121,7 +121,6 @@ inline bool throw_on_cuda_error(cudaError_t code, const char *file, int line)
 
     if (code == cudaErrorInsufficientDriver)
     {
-        std::cout << "Recieved cudaErrorInsufficentDriver. If you have a NVIDIA GPU, you may need to upgrade your GPU drivers." << std::endl;
         return false;
     }
 
