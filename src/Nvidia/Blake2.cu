@@ -7,6 +7,10 @@
 #include <string>
 #include <iostream>
 #include <vector>
+#include <sstream>
+
+#include <thrust/system_error.h>
+#include <thrust/system/cuda/error.h>
 
 #include "Blake2.h"
 #include "Argon2.h"
@@ -164,7 +168,7 @@ void setNonce(
     inseed[8] = inseed[8] | ((nonce64 << 24) & nonceMask);
 }
 
-__device__ 
+__device__
 void initial_hash(
     uint64_t *hash,
     uint64_t *inseed,
@@ -385,22 +389,6 @@ void getNonceKernel(
     }
 }
 
-#define ERROR_CHECK(ans) { gpuAssert((ans), __FILE__, __LINE__); }
-inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort = true)
-{
-    if (code != cudaSuccess)
-    {
-        std::string errorStr = cudaGetErrorString(code);
-
-        std::cout << "CUDA Error: " << errorStr << " at " << file << ", Line " << line << std::endl;
-
-        if (abort)
-        {
-            throw std::runtime_error(errorStr);
-        }
-    }
-}
-
 void setupBlakeInput(
     const std::vector<uint8_t> &input,
     const std::vector<uint8_t> &saltInput,
@@ -465,5 +453,5 @@ void setupBlakeInput(
     index += sizeof(dataSize);
 
     /* Copy over the input data */
-    ERROR_CHECK(cudaMemcpyAsync(state.blakeInput, &initialInput[0], BLAKE_BLOCK_SIZE * 2, cudaMemcpyHostToDevice, state.stream));
+    throw_on_cuda_error(cudaMemcpyAsync(state.blakeInput, &initialInput[0], BLAKE_BLOCK_SIZE * 2, cudaMemcpyHostToDevice, state.stream), __FILE__, __LINE__);
 }

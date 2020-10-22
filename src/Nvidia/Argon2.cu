@@ -34,22 +34,6 @@
 #include "Argon2.h"
 #include "Blake2.h"
 
-#define ERROR_CHECK(ans) { gpuAssert((ans), __FILE__, __LINE__); }
-inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort = true)
-{
-    if (code != cudaSuccess)
-    {
-        std::string errorStr = cudaGetErrorString(code);
-
-        std::cout << "CUDA Error: " << errorStr << " at " << file << ", Line " << line << std::endl;
-
-        if (abort)
-        {
-            throw std::runtime_error(errorStr);
-        }
-    }
-}
-
 __device__
 uint64_t u64_build(
     const uint32_t hi,
@@ -718,7 +702,7 @@ kernelLaunchParams getLaunchParams(
     size_t free;
     size_t total;
 
-    cudaMemGetInfo(&free, &total);
+    throw_on_cuda_error(cudaMemGetInfo(&free, &total), __FILE__, __LINE__);
 
     size_t memoryPerHash = sizeof(block_g) * scratchpadSize;
 
@@ -774,17 +758,17 @@ NvidiaState initializeState(
     const float nextAttempt = attempt == 0 ? 1 : attempt * 2;
 
     /* Set current device */
-    ERROR_CHECK(cudaSetDevice(gpuIndex));
+    throw_on_cuda_error(cudaSetDevice(gpuIndex), __FILE__, __LINE__);
 
     /* Reset, otherwise stream creation will fail */
-    ERROR_CHECK(cudaDeviceReset());
+    throw_on_cuda_error(cudaDeviceReset(), __FILE__, __LINE__);
 
     /* Don't block CPU execution waiting for kernel to finish */
-    ERROR_CHECK(cudaSetDeviceFlags(cudaDeviceScheduleBlockingSync));
+    throw_on_cuda_error(cudaSetDeviceFlags(cudaDeviceScheduleBlockingSync), __FILE__, __LINE__);
 
     NvidiaState state;
 
-    ERROR_CHECK(cudaStreamCreate(&state.stream));
+    throw_on_cuda_error(cudaStreamCreate(&state.stream), __FILE__, __LINE__);
 
     state.launchParams = getLaunchParams(gpuIndex, scratchpadSize, iterations, attempt, intensity);
 
@@ -832,23 +816,23 @@ NvidiaState initializeState(
         return initializeState(gpuIndex, scratchpadSize, iterations, intensity, nextAttempt);
     }
 
-    ERROR_CHECK(cudaMemsetAsync(state.hashFound, false, sizeof(bool), state.stream));
-    ERROR_CHECK(cudaMemsetAsync(state.nonce, 0, sizeof(uint32_t), state.stream));
-    
+    throw_on_cuda_error(cudaMemsetAsync(state.hashFound, false, sizeof(bool), state.stream), __FILE__, __LINE__);
+    throw_on_cuda_error(cudaMemsetAsync(state.nonce, 0, sizeof(uint32_t), state.stream), __FILE__, __LINE__);
+
     return state;
 }
 
 void freeState(NvidiaState &state)
 {
-    ERROR_CHECK(cudaFree(state.memory));
-    ERROR_CHECK(cudaFree(state.nonce));
-    ERROR_CHECK(cudaFree(state.hash));
-    ERROR_CHECK(cudaFree(state.hashFound));
-    ERROR_CHECK(cudaFree(state.blakeInput));
+    throw_on_cuda_error(cudaFree(state.memory), __FILE__, __LINE__);
+    throw_on_cuda_error(cudaFree(state.nonce), __FILE__, __LINE__);
+    throw_on_cuda_error(cudaFree(state.hash), __FILE__, __LINE__);
+    throw_on_cuda_error(cudaFree(state.hashFound), __FILE__, __LINE__);
+    throw_on_cuda_error(cudaFree(state.blakeInput), __FILE__, __LINE__);
 
     if (state.stream != NULL)
     {
-        ERROR_CHECK(cudaStreamDestroy(state.stream));
+        throw_on_cuda_error(cudaStreamDestroy(state.stream), __FILE__, __LINE__);
     }
 }
 
@@ -913,24 +897,24 @@ HashResult nvidiaHash(NvidiaState &state)
     );
 
     /* Wait for kernel */
-    ERROR_CHECK(cudaStreamSynchronize(state.stream));
+    throw_on_cuda_error(cudaStreamSynchronize(state.stream), __FILE__, __LINE__);
 
     HashResult result;
 
     /* See if we found a valid nonce */
-    ERROR_CHECK(cudaMemcpy(&result.success, state.hashFound, sizeof(result.success), cudaMemcpyDeviceToHost));
-    
+    throw_on_cuda_error(cudaMemcpy(&result.success, state.hashFound, sizeof(result.success), cudaMemcpyDeviceToHost), __FILE__, __LINE__);
+
     if (result.success)
-    {   
+    {
         /* Copy valid nonce + hash back to CPU */
-        ERROR_CHECK(cudaMemcpy(&result.nonce, state.nonce, sizeof(result.nonce), cudaMemcpyDeviceToHost));
-        ERROR_CHECK(cudaMemcpy(&result.hash, state.hash, ARGON_HASH_LENGTH, cudaMemcpyDeviceToHost));
+        throw_on_cuda_error(cudaMemcpy(&result.nonce, state.nonce, sizeof(result.nonce), cudaMemcpyDeviceToHost), __FILE__, __LINE__);
+        throw_on_cuda_error(cudaMemcpy(&result.hash, state.hash, ARGON_HASH_LENGTH, cudaMemcpyDeviceToHost), __FILE__, __LINE__);
 
         /* Clear the hash found flag so don't think we have found a share when we
            have not, along with the nonce */
-        ERROR_CHECK(cudaMemsetAsync(state.hashFound, false, sizeof(bool), state.stream));
-        ERROR_CHECK(cudaMemsetAsync(state.nonce, 0, sizeof(uint32_t), state.stream));
+        throw_on_cuda_error(cudaMemsetAsync(state.hashFound, false, sizeof(bool), state.stream), __FILE__, __LINE__);
+        throw_on_cuda_error(cudaMemsetAsync(state.nonce, 0, sizeof(uint32_t), state.stream), __FILE__, __LINE__);
     }
-    
+
     return result;
 }

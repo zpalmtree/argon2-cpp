@@ -5,9 +5,12 @@
 #pragma once
 
 #include <vector>
+#include <sstream>
 
 #include <cuda.h>
 #include <cuda_runtime.h>
+#include <thrust/system_error.h>
+#include <thrust/system/cuda/error.h>
 
 const size_t ARGON_BLOCK_SIZE = 1024;
 const size_t ARGON_QWORDS_IN_BLOCK = ARGON_BLOCK_SIZE / 8;
@@ -101,6 +104,38 @@ struct NvidiaState
 
     cudaStream_t stream = NULL;
 };
+
+inline bool throw_on_cuda_error(cudaError_t code, const char *file, int line)
+{
+    if (code == cudaErrorUnknown)
+    {
+        std::cout << "Recieved cudaErrorUnknown (999) from Nvidia device. Your PC may need restarting." << std::endl;
+        return false;
+    }
+
+    if (code == cudaErrorDevicesUnavailable)
+    {
+        std::cout << "Recieved cudaErrorDevicesUnavailable from Nvidia device. Another application may be using the GPU exclusively." << std::endl;
+        return false;
+    }
+
+    if (code == cudaErrorInsufficientDriver)
+    {
+        std::cout << "Recieved cudaErrorInsufficentDriver. If you have a NVIDIA GPU, you may need to upgrade your GPU drivers." << std::endl;
+        return false;
+    }
+
+    if (code != cudaSuccess)
+    {
+        std::stringstream ss;
+        ss << file << "(" << line << ")";
+        std::string file_and_line;
+        ss >> file_and_line;
+        throw thrust::system_error(code, thrust::cuda_category(), file_and_line);
+    }
+
+    return true;
+}
 
 NvidiaState initializeState(
     const uint32_t gpuIndex,
