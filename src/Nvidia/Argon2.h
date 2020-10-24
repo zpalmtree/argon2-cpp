@@ -119,6 +119,12 @@ inline bool throw_on_cuda_error(cudaError_t code, const char *file, int line)
         return false;
     }
 
+    if (code == cudaErrorInitializationError)
+    {
+        std::cout << "Received cudaErrorInitializationError from Nvidia device. You may need to update your GPU drivers." << std::endl;
+        return false;
+    }
+
     if (code == cudaErrorInsufficientDriver)
     {
         return false;
