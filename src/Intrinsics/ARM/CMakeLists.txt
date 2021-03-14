@@ -7,6 +7,7 @@ set(neon_intrinsics_source_files
 set(arm_intrinsics_source_files
     ArgonIntrinsics.cpp
     BlakeIntrinsics.cpp
+    ProcessBlockARMv8.cpp
     ${neon_intrinsics_source_files}
 )
 

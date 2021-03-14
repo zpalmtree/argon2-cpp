@@ -7,3 +7,4 @@
 #include "Argon2/Argon2.h"
 
 static const bool hasNEON = true;
+static const bool hasARMV8 = true;

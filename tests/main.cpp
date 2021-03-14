@@ -63,7 +63,7 @@ int main(int argc, char *argv[])
       try {
           Constants::optimizationMethodFromString(optimization);
       } catch (const std::invalid_argument &e) {
-          std::cerr << "Unknown optimization metod '" << optimization << "'" << std::endl;
+          std::cerr << e.what() << std::endl;
 	  return 1;
       }
     }
