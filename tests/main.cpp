@@ -52,9 +52,25 @@ bool testHashFunction(std::string expectedOutput, std::string testName, std::fun
     }
 }
 
-int main()
+int reps = 0;
+std::string optimization = "None";
+int main(int argc, char *argv[])
 {
     std::vector<bool> results;
+
+    if (argc > 2) {
+      optimization = argv[2];
+      try {
+          Constants::optimizationMethodFromString(optimization);
+      } catch (const std::invalid_argument &e) {
+          std::cerr << "Unknown optimization metod '" << optimization << "'" << std::endl;
+	  return 1;
+      }
+    }
+    if (argc > 1) {
+      reps = atoi(argv[1]);
+      printf("Doing %i reps of Chukwatest with optimization %s\n", reps, optimization.c_str());
+    }
 
     const auto blakeExpected1 = "786a02f742015903c6c6fd852552d272912f4740e15847618a86e217f71f5419d25e1031afee585313896444934eb04b903a685b1448b755d56f701afe9be2ce";
     const auto blakeExpected2 = "a8add4bdddfd93e4877d2746e62817b116364a1fa7bc148d95090bc7333b3673f82401cf7aa2e4cb1ecd90296e3f14cb5413f8ed77be73045b13914cdcd6a918";
@@ -118,7 +134,7 @@ int main()
     const auto argon2IDExpected = "0d640df58d78766c08c037a34a8b53c9d01ef0452d75b65eb52520e96b01e659";
     const auto chukwaExpected = "c0dad0eeb9c52e92a1c3aa5b76a3cb90bd7376c28dce191ceeb1096e3a390d2e";
 
-    Argon2 chukwa(Constants::ARGON2ID, {}, {}, 3, 512, 1, 32);
+    Argon2 chukwa(Constants::ARGON2ID, {}, {}, 3, 512, 1, 32, Constants::optimizationMethodFromString(optimization));
 
     results.push_back(testHashFunction(argon2DExpected, "Argon2D", [argonHash](){
         return argonHash(Constants::ARGON2D);
@@ -143,6 +159,9 @@ int main()
     }));
 
     results.push_back(testHashFunction(chukwaExpected, "TurtleCoin Compatibility", [&chukwaInput, &chukwaSalt, &chukwa](){
+	while (reps--) {
+	    chukwa.Hash(chukwaInput, chukwaSalt);
+	}
         return chukwa.Hash(chukwaInput, chukwaSalt);
     }));
 
