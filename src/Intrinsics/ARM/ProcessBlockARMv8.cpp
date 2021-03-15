@@ -2,7 +2,7 @@
  * ARMv8 optimized Argon2
 */
 
-// Copyright (c) 2019, notasailor
+// Copyright (c) 2021, notasailor
 //
 // Please see the included LICENSE file for more information.
 
@@ -26,25 +26,8 @@ namespace ProcessBlockARMv8
     const uint64_t *prev = prevBlock.data();
     const uint64_t *ref = refBlock.data();
     uint64_t *next = nextBlock.data();
+    const uint64_t doxor = doXor ? 0xFFFFFFFFFFFFFFFF : 0;
 
-#if 0
-    for (int i = 0; i < Constants::BLOCK_SIZE; i += 16)
-    {
-	    for (int j = 0; j != 16; j++) {
-            	_state[i+j] = refBlock[i+j] ^ prevBlock[i+j];
-	    }
-	    ProcessBlockARMv8::blamkaGeneric(
-            _state[i + 0],
-            _state[i + 2],
-            _state[i + 4],
-            _state[i + 6],
-            _state[i + 8],
-            _state[i + 10],
-            _state[i + 12],
-            _state[i + 14]
-        );
-    }
-#endif
     asm volatile(
 	"mov w24, #8\n"
 	"ldr x20, %[state]\n"
@@ -122,113 +105,57 @@ namespace ProcessBlockARMv8
 	"st1 {v12.2d}, [x20]\n"
 	"add x20, x20, #128\n"
 	"st1 {v14.2d}, [x20]\n"
-	"subs x20, x20, #896\n"
+	"subs x20, x20, #880\n"
 
 	"add x24, x24, #16\n"
-	"add x20, x20, #16\n"
 	"cmp x24, #128\n"
 	"bne mainloop\n"
 
-	: : [state] "m" (state), [prev] "m" (prev), [ref] "m" (ref), [next] "m" (next)
-       	: "v0", "v2", "v4", "v6", "v8", "v10", "v12", "v14", "v1", "v3", "v16", "v17", "v16", "v17", "v18", "v19",
-	  "x0", "x1", "x2", "x3", "x4", "x5", "x6", "x7", "x8", "x9", "x10", "x11", "x12", "x13", "x14", "x15", "x16", "x17",
-	"cc", "x20", "x21", "x22", "x24");
-#if 0
-    for (int i = 0; i < Constants::BLOCK_SIZE / 8; i += 2)
-    {
-	    ProcessBlockARMv8::blamkaGeneric(
-            _state[0 + i + 0],
-            _state[16 + i + 0],
-            _state[32 + i + 0],
-            _state[48 + i + 0],
-            _state[64 + i + 0],
-            _state[80 + i + 0],
-            _state[96 + i + 0],
-            _state[112 + i + 0]
-        );
-    }
-#endif
+        "mov w4, #16\n"
 
-    if (doXor)
-    {
-	asm volatile(
-	"mov w4, #16\n"
-	"ldr x0, %[next]\n"
-	"ldr x1, %[ref]\n"
-	"ldr x2, %[prev]\n"
-	"ldr x3, %[state]\n"
-
-	"xorloop:\n"
-	"ld4 {v0.2d, v1.2d, v2.2d, v3.2d}, [x2], #64\n" // prevBlock
+        "ldr x0, %[next]\n"
+        "ldr x1, %[ref]\n"
+        "ldr x2, %[prev]\n"
+        "ldr x3, %[state]\n"
+	"mov x5, %[doxor]\n"
+	"dup v8.2d, x5\n"
+ 
+        "xorloop:\n"
+        "ld4 {v0.2d, v1.2d, v2.2d, v3.2d}, [x2], #64\n" // prevBlock
         "ld4 {v4.2d, v5.2d, v6.2d, v7.2d}, [x3], #64\n" // state
-
-	"eor v0.16b, v0.16b, v4.16b\n"
-	"eor v1.16b, v1.16b, v5.16b\n"
-	"eor v2.16b, v2.16b, v6.16b\n"
-	"eor v3.16b, v3.16b, v7.16b\n"
-
+ 
+        "eor v0.16b, v0.16b, v4.16b\n"
+        "eor v1.16b, v1.16b, v5.16b\n"
+        "eor v2.16b, v2.16b, v6.16b\n"
+        "eor v3.16b, v3.16b, v7.16b\n"
+ 
         "ld4 {v4.2d, v5.2d, v6.2d, v7.2d}, [x1], #64\n" // refBlock
-
-	"eor v0.16b, v0.16b, v4.16b\n"
-	"eor v1.16b, v1.16b, v5.16b\n"
-	"eor v2.16b, v2.16b, v6.16b\n"
-	"eor v3.16b, v3.16b, v7.16b\n"
+ 
+        "eor v0.16b, v0.16b, v4.16b\n"
+        "eor v1.16b, v1.16b, v5.16b\n"
+        "eor v2.16b, v2.16b, v6.16b\n"
+        "eor v3.16b, v3.16b, v7.16b\n"
 
         "ld4 {v4.2d, v5.2d, v6.2d, v7.2d}, [x0]\n" // nextBlock
 
-	"eor v0.16b, v0.16b, v4.16b\n"
-	"eor v1.16b, v1.16b, v5.16b\n"
-	"eor v2.16b, v2.16b, v6.16b\n"
-	"eor v3.16b, v3.16b, v7.16b\n"
+	"and v4.16b, v4.16b, v8.16b\n"
+	"and v5.16b, v5.16b, v8.16b\n"
+	"and v6.16b, v6.16b, v8.16b\n"
+	"and v7.16b, v7.16b, v8.16b\n"
+ 
+        "eor v0.16b, v0.16b, v4.16b\n"
+        "eor v1.16b, v1.16b, v5.16b\n"
+        "eor v2.16b, v2.16b, v6.16b\n"
+        "eor v3.16b, v3.16b, v7.16b\n"
 
-	"st4 {v0.2d, v1.2d, v2.2d, v3.2d}, [x0], #64\n"
+        "st4 {v0.2d, v1.2d, v2.2d, v3.2d}, [x0], #64\n"
 
-	"subs w4, w4, #1\n"
-	"bne xorloop\n"
-
-	: : [state] "m" (state), [prev] "m" (prev), [ref] "m" (ref), [next] "m" (next)
-       	: "cc", "x0", "x1", "x2", "x3", "w4", "v0", "v1", "v2", "v3", "v4", "v5", "v6", "v7"  );
-
-    }
-    else
-    {
-	    /*
-        for (int i = 0; i < Constants::BLOCK_SIZE; i++)
-        {
-            nextBlock[i] = refBlock[i] ^ prevBlock[i] ^ state[i];
-        }
-	*/
-	asm volatile(
-	"mov w4, #16\n"
-	"ldr x0, %[next]\n"
-	"ldr x1, %[ref]\n"
-	"ldr x2, %[prev]\n"
-	"ldr x3, %[state]\n"
-
-	"noxorloop:\n"
-	"ld4 {v0.2d, v1.2d, v2.2d, v3.2d}, [x2], #64\n" // prevBlock
-        "ld4 {v4.2d, v5.2d, v6.2d, v7.2d}, [x3], #64\n" // state
-
-	"eor v0.16b, v0.16b, v4.16b\n"
-	"eor v1.16b, v1.16b, v5.16b\n"
-	"eor v2.16b, v2.16b, v6.16b\n"
-	"eor v3.16b, v3.16b, v7.16b\n"
-
-        "ld4 {v4.2d, v5.2d, v6.2d, v7.2d}, [x1], #64\n" // refBlock
-
-	"eor v0.16b, v0.16b, v4.16b\n"
-	"eor v1.16b, v1.16b, v5.16b\n"
-	"eor v2.16b, v2.16b, v6.16b\n"
-	"eor v3.16b, v3.16b, v7.16b\n"
-
-	"st4 {v0.2d, v1.2d, v2.2d, v3.2d}, [x0], #64\n"
-
-	"subs w4, w4, #1\n"
-	"bne noxorloop\n"
-
-	: : [state] "m" (state), [prev] "m" (prev), [ref] "m" (ref), [next] "m" (next)
-       	: "cc", "x0", "x1", "x2", "x3", "w4", "v0", "v1", "v2", "v3", "v4", "v5", "v6", "v7"  );
-    }
+        "subs w4, w4, #1\n"
+        "bne xorloop\n"
+	: : [state] "m" (state), [prev] "m" (prev), [ref] "m" (ref), [next] "m" (next), [doxor] "r" (doxor)
+       	: "v0", "v2", "v4", "v6", "v8", "v10", "v12", "v14", "v1", "v3", "v16", "v17", "v16", "v17", "v18", "v19",
+	  "x0", "x1", "x2", "x3", "x4", "x5", "x6", "x7", "x8", "x9", "x10", "x11", "x12", "x13", "x14", "x15", "x16", "x17",
+	"cc", "x20", "x21", "x22", "x24");
 }
 
 void blamkaGeneric(
