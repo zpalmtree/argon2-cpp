@@ -29,6 +29,7 @@ namespace Constants
         SSSE3,
         SSE2,
         NEON,
+	ARMV8,
         NONE,
         AUTO,
     };
@@ -60,6 +61,10 @@ namespace Constants
             case NEON:
             {
                 return "NEON";
+            }
+            case ARMV8:
+            {
+                return "ARMV8";
             }
             case NONE:
             {
@@ -103,6 +108,10 @@ namespace Constants
         else if (method == "NEON")
         {
             return NEON;
+        }
+        else if (method == "ARMV8")
+        {
+            return ARMV8;
         }
         else if (method == "NONE")
         {

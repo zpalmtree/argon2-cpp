@@ -11,6 +11,7 @@
 
 #include "Argon2/Argon2.h"
 #include "Intrinsics/ARM/ProcessBlockNEON.h"
+#include "Intrinsics/ARM/ProcessBlockARMv8.h"
 
 void Argon2::processBlockGeneric(
     Block &nextBlock,
@@ -23,6 +24,10 @@ void Argon2::processBlockGeneric(
     if (m_optimizationMethod == Constants::NEON && hasNEON)
     {
         ProcessBlockNEON::processBlockNEON(nextBlock, refBlock, prevBlock, doXor);
+    }
+    else if (m_optimizationMethod == Constants::ARMV8 && hasARMV8)
+    {
+        ProcessBlockARMv8::processBlockARMv8(nextBlock, refBlock, prevBlock, doXor);
     }
     else
     {
