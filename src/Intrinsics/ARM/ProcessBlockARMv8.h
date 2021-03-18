@@ -13,13 +13,4 @@ namespace ProcessBlockARMv8
         const Block &refBlock,
         const Block &prevBlock,
         const bool doXor);
-    void blamkaGeneric(
-    uint64_t &t00,
-    uint64_t &t02,
-    uint64_t &t04,
-    uint64_t &t06,
-    uint64_t &t08,
-    uint64_t &t10,
-    uint64_t &t12,
-    uint64_t &t14);
 }
