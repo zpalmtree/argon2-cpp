@@ -27,7 +27,10 @@ void Argon2::processBlockGeneric(
     }
     else if (m_optimizationMethod == Constants::ARMV8 && hasARMV8)
     {
-        ProcessBlockARMv8::processBlockARMv8(nextBlock, refBlock, prevBlock, doXor);
+	if (doXor)
+            ProcessBlockARMv8::processBlockARMv8DoXor(nextBlock, refBlock, prevBlock);
+	else
+            ProcessBlockARMv8::processBlockARMv8NoXor(nextBlock, refBlock, prevBlock);
     }
     else
     {
