@@ -2,7 +2,7 @@
  * ARMv8 optimized Argon2
 */
 
-// Copyright (c) 2019, notasailor
+// Copyright (c) 2021, notasailor
 //
 // Please see the included LICENSE file for more information.
 
@@ -26,6 +26,7 @@ namespace ProcessBlockARMv8
     const uint64_t *prev = prevBlock.data();
     const uint64_t *ref = refBlock.data();
     uint64_t *next = nextBlock.data();
+    const uint64_t doxor = doXor ? 0xFFFFFFFFFFFFFFFF : 0;
 
     asm volatile(
 	"mov w24, #8\n"
@@ -104,10 +105,9 @@ namespace ProcessBlockARMv8
 	"st1 {v12.2d}, [x20]\n"
 	"add x20, x20, #128\n"
 	"st1 {v14.2d}, [x20]\n"
-	"subs x20, x20, #896\n"
+	"subs x20, x20, #880\n"
 
 	"add x24, x24, #16\n"
-	"add x20, x20, #16\n"
 	"cmp x24, #128\n"
 	"bne mainloop\n"
 
@@ -128,18 +128,18 @@ namespace ProcessBlockARMv8
 	"xorloop:\n"
 	"ld4 {v0.2d, v1.2d, v2.2d, v3.2d}, [x2], #64\n" // prevBlock
         "ld4 {v4.2d, v5.2d, v6.2d, v7.2d}, [x3], #64\n" // state
-
-	"eor v0.16b, v0.16b, v4.16b\n"
-	"eor v1.16b, v1.16b, v5.16b\n"
-	"eor v2.16b, v2.16b, v6.16b\n"
-	"eor v3.16b, v3.16b, v7.16b\n"
-
+ 
+        "eor v0.16b, v0.16b, v4.16b\n"
+        "eor v1.16b, v1.16b, v5.16b\n"
+        "eor v2.16b, v2.16b, v6.16b\n"
+        "eor v3.16b, v3.16b, v7.16b\n"
+ 
         "ld4 {v4.2d, v5.2d, v6.2d, v7.2d}, [x1], #64\n" // refBlock
-
-	"eor v0.16b, v0.16b, v4.16b\n"
-	"eor v1.16b, v1.16b, v5.16b\n"
-	"eor v2.16b, v2.16b, v6.16b\n"
-	"eor v3.16b, v3.16b, v7.16b\n"
+ 
+        "eor v0.16b, v0.16b, v4.16b\n"
+        "eor v1.16b, v1.16b, v5.16b\n"
+        "eor v2.16b, v2.16b, v6.16b\n"
+        "eor v3.16b, v3.16b, v7.16b\n"
 
         "ld4 {v4.2d, v5.2d, v6.2d, v7.2d}, [x0]\n" // nextBlock
 
@@ -190,6 +190,5 @@ namespace ProcessBlockARMv8
 	: : [state] "m" (state), [prev] "m" (prev), [ref] "m" (ref), [next] "m" (next)
        	: "cc", "x0", "x1", "x2", "x3", "w4", "v0", "v1", "v2", "v3", "v4", "v5", "v6", "v7"  );
     }
-}
 }
 
